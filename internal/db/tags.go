@@ -1,0 +1,82 @@
+package db
+
+import (
+	"fmt"
+	"time"
+)
+
+func (d *DB) AddTag(nodeID, tag string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.db.Exec(`INSERT OR IGNORE INTO tags (node_id, tag, created_at) VALUES (?, ?, ?)`,
+		nodeID, tag, now)
+	if err != nil {
+		return fmt.Errorf("failed to add tag: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) RemoveTag(nodeID, tag string) error {
+	_, err := d.db.Exec("DELETE FROM tags WHERE node_id = ? AND tag = ?", nodeID, tag)
+	if err != nil {
+		return fmt.Errorf("failed to remove tag: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) GetTags(nodeID string) ([]string, error) {
+	rows, err := d.db.Query("SELECT tag FROM tags WHERE node_id = ? ORDER BY tag", nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tags: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+func (d *DB) ListAllTags() ([]string, error) {
+	rows, err := d.db.Query("SELECT DISTINCT tag FROM tags ORDER BY tag")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+func (d *DB) ListTagsByPrefix(prefix string) ([]string, error) {
+	rows, err := d.db.Query("SELECT DISTINCT tag FROM tags WHERE tag LIKE ? ORDER BY tag", prefix+"%")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tags by prefix: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("failed to scan tag: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+func (d *DB) GetNodesByTag(tag string) ([]*Node, error) {
+	return d.ListNodes(ListOptions{Tag: tag})
+}
