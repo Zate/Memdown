@@ -1,0 +1,324 @@
+package db
+
+import (
+	"crypto/rand"
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/oklog/ulid/v2"
+	"github.com/zate/ctx/internal/token"
+)
+
+var validNodeTypes = map[string]bool{
+	"fact":          true,
+	"decision":      true,
+	"pattern":       true,
+	"observation":   true,
+	"hypothesis":    true,
+	"task":          true,
+	"summary":       true,
+	"source":        true,
+	"open-question": true,
+}
+
+type Node struct {
+	ID            string    `json:"id"`
+	Type          string    `json:"type"`
+	Content       string    `json:"content"`
+	Summary       *string   `json:"summary,omitempty"`
+	TokenEstimate int       `json:"token_estimate"`
+	SupersededBy  *string   `json:"superseded_by,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	Metadata      string    `json:"metadata"`
+	Tags          []string  `json:"tags,omitempty"`
+}
+
+type CreateNodeInput struct {
+	Type     string
+	Content  string
+	Summary  *string
+	Metadata string
+	Tags     []string
+}
+
+type UpdateNodeInput struct {
+	Content  *string
+	Type     *string
+	Summary  *string
+	Metadata *string
+}
+
+type ListOptions struct {
+	Type    string
+	Tag     string
+	Since   *time.Time
+	Limit   int
+	IncludeSuperseded bool
+}
+
+func NewID() string {
+	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
+}
+
+func (d *DB) CreateNode(input CreateNodeInput) (*Node, error) {
+	if !validNodeTypes[input.Type] {
+		return nil, fmt.Errorf("invalid node type: %s", input.Type)
+	}
+	if strings.TrimSpace(input.Content) == "" {
+		return nil, fmt.Errorf("content cannot be empty")
+	}
+
+	id := NewID()
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+	tokenEst := token.Estimate(input.Content)
+	metadata := input.Metadata
+	if metadata == "" {
+		metadata = "{}"
+	}
+
+	tx, err := d.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var summary sql.NullString
+	if input.Summary != nil {
+		summary = sql.NullString{String: *input.Summary, Valid: true}
+	}
+
+	_, err = tx.Exec(`INSERT INTO nodes (id, type, content, summary, token_estimate, created_at, updated_at, metadata)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, input.Type, input.Content, summary, tokenEst, nowStr, nowStr, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node: %w", err)
+	}
+
+	for _, tag := range input.Tags {
+		_, err = tx.Exec(`INSERT OR IGNORE INTO tags (node_id, tag, created_at) VALUES (?, ?, ?)`,
+			id, tag, nowStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add tag %s: %w", tag, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit: %w", err)
+	}
+
+	return &Node{
+		ID:            id,
+		Type:          input.Type,
+		Content:       input.Content,
+		Summary:       input.Summary,
+		TokenEstimate: tokenEst,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		Metadata:      metadata,
+		Tags:          input.Tags,
+	}, nil
+}
+
+func (d *DB) GetNode(id string) (*Node, error) {
+	node := &Node{}
+	var summary, supersededBy sql.NullString
+	var createdAt, updatedAt string
+
+	err := d.db.QueryRow(`SELECT id, type, content, summary, token_estimate, superseded_by, created_at, updated_at, metadata
+		FROM nodes WHERE id = ?`, id).Scan(
+		&node.ID, &node.Type, &node.Content, &summary, &node.TokenEstimate,
+		&supersededBy, &createdAt, &updatedAt, &node.Metadata)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+
+	if summary.Valid {
+		node.Summary = &summary.String
+	}
+	if supersededBy.Valid {
+		node.SupersededBy = &supersededBy.String
+	}
+	node.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	node.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+
+	tags, err := d.GetTags(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tags: %w", err)
+	}
+	node.Tags = tags
+
+	return node, nil
+}
+
+func (d *DB) UpdateNode(id string, input UpdateNodeInput) (*Node, error) {
+	// Check node exists
+	existing, err := d.GetNode(id)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+
+	content := existing.Content
+	nodeType := existing.Type
+	metadata := existing.Metadata
+	summary := existing.Summary
+
+	if input.Content != nil {
+		content = *input.Content
+	}
+	if input.Type != nil {
+		if !validNodeTypes[*input.Type] {
+			return nil, fmt.Errorf("invalid node type: %s", *input.Type)
+		}
+		nodeType = *input.Type
+	}
+	if input.Metadata != nil {
+		metadata = *input.Metadata
+	}
+	if input.Summary != nil {
+		summary = input.Summary
+	}
+
+	tokenEst := token.Estimate(content)
+
+	var summaryVal sql.NullString
+	if summary != nil {
+		summaryVal = sql.NullString{String: *summary, Valid: true}
+	}
+
+	_, err = d.db.Exec(`UPDATE nodes SET type=?, content=?, summary=?, token_estimate=?, updated_at=?, metadata=?
+		WHERE id=?`, nodeType, content, summaryVal, tokenEst, nowStr, metadata, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update node: %w", err)
+	}
+
+	return d.GetNode(id)
+}
+
+func (d *DB) DeleteNode(id string) error {
+	result, err := d.db.Exec("DELETE FROM nodes WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete node: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (d *DB) ListNodes(opts ListOptions) ([]*Node, error) {
+	query := `SELECT n.id, n.type, n.content, n.summary, n.token_estimate, n.superseded_by, n.created_at, n.updated_at, n.metadata
+		FROM nodes n`
+	var conditions []string
+	var args []interface{}
+
+	if !opts.IncludeSuperseded {
+		conditions = append(conditions, "n.superseded_by IS NULL")
+	}
+	if opts.Type != "" {
+		conditions = append(conditions, "n.type = ?")
+		args = append(args, opts.Type)
+	}
+	if opts.Tag != "" {
+		query += " JOIN tags t ON n.id = t.node_id"
+		conditions = append(conditions, "t.tag = ?")
+		args = append(args, opts.Tag)
+	}
+	if opts.Since != nil {
+		conditions = append(conditions, "n.created_at >= ?")
+		args = append(args, opts.Since.UTC().Format(time.RFC3339))
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY n.created_at DESC"
+
+	if opts.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", opts.Limit)
+	}
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []*Node
+	for rows.Next() {
+		node := &Node{}
+		var summary, supersededBy sql.NullString
+		var createdAt, updatedAt string
+
+		err := rows.Scan(&node.ID, &node.Type, &node.Content, &summary, &node.TokenEstimate,
+			&supersededBy, &createdAt, &updatedAt, &node.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan node: %w", err)
+		}
+
+		if summary.Valid {
+			node.Summary = &summary.String
+		}
+		if supersededBy.Valid {
+			node.SupersededBy = &supersededBy.String
+		}
+		node.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		node.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+
+		tags, _ := d.GetTags(node.ID)
+		node.Tags = tags
+		nodes = append(nodes, node)
+	}
+
+	return nodes, nil
+}
+
+func (d *DB) Search(query string) ([]*Node, error) {
+	rows, err := d.db.Query(`SELECT n.id, n.type, n.content, n.summary, n.token_estimate, n.superseded_by, n.created_at, n.updated_at, n.metadata
+		FROM nodes n
+		JOIN nodes_fts f ON n.rowid = f.rowid
+		WHERE nodes_fts MATCH ?
+		ORDER BY rank`, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search: %w", err)
+	}
+	defer rows.Close()
+
+	var nodes []*Node
+	for rows.Next() {
+		node := &Node{}
+		var summary, supersededBy sql.NullString
+		var createdAt, updatedAt string
+
+		err := rows.Scan(&node.ID, &node.Type, &node.Content, &summary, &node.TokenEstimate,
+			&supersededBy, &createdAt, &updatedAt, &node.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan node: %w", err)
+		}
+
+		if summary.Valid {
+			node.Summary = &summary.String
+		}
+		if supersededBy.Valid {
+			node.SupersededBy = &supersededBy.String
+		}
+		node.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		node.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+
+		tags, _ := d.GetTags(node.ID)
+		node.Tags = tags
+		nodes = append(nodes, node)
+	}
+
+	return nodes, nil
+}
