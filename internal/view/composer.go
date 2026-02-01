@@ -95,13 +95,17 @@ func RenderMarkdown(result *ComposeResult) string {
 	header += " -->\n\n"
 	b.WriteString(header)
 
-	// Always include a compact usage primer so the agent knows how to use ctx
-	b.WriteString("You have persistent memory via `ctx`. Use these XML commands in your responses (they are processed automatically after you respond):\n")
-	b.WriteString("- `<ctx:remember type=\"fact|decision|pattern|observation\" tags=\"tier:reference,project:X\">content</ctx:remember>` — store knowledge\n")
-	b.WriteString("- `<ctx:recall query=\"type:decision AND tag:project:X\"/>` — retrieve knowledge (results appear on next prompt)\n")
-	b.WriteString("- `<ctx:status/>` — check memory status\n")
-	b.WriteString("- `<ctx:task name=\"X\" action=\"start|end\"/>` — mark task boundaries\n")
-	b.WriteString("Always include a `tier:` tag (pinned, reference, working, off-context). Invoke the `ctx` skill for full reference.\n\n")
+	// Always include usage primer with WHEN to store (not just HOW)
+	b.WriteString("You have persistent memory via `ctx`. Commands are processed after you respond.\n\n")
+	b.WriteString("**Store knowledge when:**\n")
+	b.WriteString("- You make or learn a **decision** → `<ctx:remember type=\"decision\" tags=\"tier:reference\">...</ctx:remember>`\n")
+	b.WriteString("- You discover a **preference** or convention → `type=\"fact\"`\n")
+	b.WriteString("- You see a recurring **pattern** → `type=\"pattern\"`\n")
+	b.WriteString("- Debugging reveals a **root cause** → `type=\"observation\"`\n")
+	b.WriteString("- An idea worth revisiting → `type=\"hypothesis\"`\n")
+	b.WriteString("- A question can't be answered now → `type=\"open-question\"`\n\n")
+	b.WriteString("**Other commands:** `<ctx:recall query=\"...\"/>`, `<ctx:status/>`, `<ctx:task name=\"X\" action=\"start|end\"/>`\n")
+	b.WriteString("Always include a `tier:` tag. Invoke the `ctx` skill for full reference.\n\n")
 
 	// Group by tier then type
 	groups := map[string][]*db.Node{
