@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/zate/ctx/internal/db"
@@ -27,6 +28,18 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	defer d.Close()
+
+	// Read last_session_stores before resetting
+	lastStores := -1
+	if val, err := d.GetPending("last_session_stores"); err == nil && val != "" {
+		if n, err := strconv.Atoi(val); err == nil {
+			lastStores = n
+		}
+	}
+
+	// Reset session counters for new session
+	d.SetPending("session_turn_count", "0")
+	d.SetPending("session_store_count", "0")
 
 	// Get default view query
 	var queryStr string
@@ -77,6 +90,8 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	result.LastSessionStores = lastStores
 
 	context := view.RenderMarkdown(result)
 

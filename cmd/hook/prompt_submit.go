@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -93,6 +94,25 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 			contextParts = append(contextParts, b.String())
 		}
 		d.DeletePending("expand_nodes")
+	}
+
+	// Increment session turn count
+	turnCount := 0
+	if val, err := d.GetPending("session_turn_count"); err == nil && val != "" {
+		turnCount, _ = strconv.Atoi(val)
+	}
+	turnCount++
+	d.SetPending("session_turn_count", strconv.Itoa(turnCount))
+
+	// Nudge if 4+ turns with no stores this session
+	if turnCount >= 4 {
+		storeCount := 0
+		if val, err := d.GetPending("session_store_count"); err == nil && val != "" {
+			storeCount, _ = strconv.Atoi(val)
+		}
+		if storeCount == 0 {
+			contextParts = append(contextParts, "<!-- ctx: No knowledge stored this session. Consider persisting decisions, patterns, or facts before the session ends. -->")
+		}
 	}
 
 	if len(contextParts) == 0 {
