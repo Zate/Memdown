@@ -18,6 +18,7 @@ var (
 	installDryRun bool
 	installForce  bool
 	installBinDir string
+	installMCP    bool
 )
 
 var installCmd = &cobra.Command{
@@ -31,6 +32,7 @@ func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Preview changes without applying them")
 	installCmd.Flags().BoolVar(&installForce, "force", false, "Force overwrite of existing binary")
 	installCmd.Flags().StringVar(&installBinDir, "bin-dir", "", "Directory to install binary into (skips interactive prompt)")
+	installCmd.Flags().BoolVar(&installMCP, "mcp", false, "Output MCP server configuration for Claude Desktop")
 	rootCmd.AddCommand(installCmd)
 }
 
@@ -168,6 +170,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	home := os.Getenv("HOME")
 	if home == "" {
 		return fmt.Errorf("HOME environment variable not set")
+	}
+
+	if installMCP {
+		return printMCPConfig(home)
 	}
 
 	// 1. Determine binary install location and install
@@ -721,5 +727,61 @@ func dirInPath(dir string) bool {
 		}
 	}
 	return false
+}
+
+// printMCPConfig outputs Claude Desktop MCP configuration for the ctx server.
+func printMCPConfig(home string) error {
+	// Find the ctx binary path
+	ctxPath, err := findCtxBinary()
+	if err != nil {
+		return err
+	}
+
+	dbPathStr := filepath.Join(home, ".ctx", "store.db")
+
+	config := map[string]any{
+		"mcpServers": map[string]any{
+			"ctx": map[string]any{
+				"command": ctxPath,
+				"args":    []string{"mcp"},
+				"env": map[string]string{
+					"CTX_DB": dbPathStr,
+				},
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	fmt.Println("Add this to your Claude Desktop configuration:")
+	fmt.Println()
+	fmt.Println(string(data))
+	fmt.Println()
+	fmt.Println("Configuration file locations:")
+	fmt.Println("  macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json")
+	fmt.Println("  Linux:   ~/.config/Claude/claude_desktop_config.json")
+	fmt.Println("  Windows: %APPDATA%/Claude/claude_desktop_config.json")
+
+	return nil
+}
+
+// findCtxBinary returns the path to the ctx binary, preferring PATH lookup.
+func findCtxBinary() (string, error) {
+	// Check if ctx is in PATH
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		candidate := filepath.Join(dir, "ctx")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	// Fall back to current executable
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("could not determine ctx binary path: %w", err)
+	}
+	return filepath.EvalSymlinks(exe)
 }
 
