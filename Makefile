@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-fuzz build install clean
+.PHONY: test test-unit test-fuzz build install clean mcp-config
 
 # Build
 build:
@@ -25,6 +25,10 @@ test-coverage:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+# Show MCP configuration for Claude Desktop
+mcp-config: build
+	./ctx install --mcp
 
 # Clean
 clean:
