@@ -16,10 +16,11 @@ type ComposeOptions struct {
 }
 
 type ComposeResult struct {
-	Nodes      []*db.Node
-	TotalTokens int
-	NodeCount   int
-	RenderedAt  time.Time
+	Nodes             []*db.Node
+	TotalTokens       int
+	NodeCount         int
+	RenderedAt        time.Time
+	LastSessionStores int  // -1 means unknown/not set
 }
 
 func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
@@ -47,7 +48,8 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 
 	// Apply budget
 	result := &ComposeResult{
-		RenderedAt: time.Now().UTC(),
+		RenderedAt:        time.Now().UTC(),
+		LastSessionStores: -1,
 	}
 
 	if opts.Budget <= 0 {
@@ -83,8 +85,15 @@ func tierPriority(tags []string) int {
 func RenderMarkdown(result *ComposeResult) string {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "<!-- ctx: %d nodes, %d tokens, rendered at %s -->\n\n",
+	header := fmt.Sprintf("<!-- ctx: %d nodes, %d tokens, rendered at %s",
 		result.NodeCount, result.TotalTokens, result.RenderedAt.Format(time.RFC3339))
+	if result.LastSessionStores > 0 {
+		header += fmt.Sprintf(" | last session: %d nodes stored", result.LastSessionStores)
+	} else if result.LastSessionStores == 0 {
+		header += " | last session: no new knowledge stored"
+	}
+	header += " -->\n\n"
+	b.WriteString(header)
 
 	// Always include a compact usage primer so the agent knows how to use ctx
 	b.WriteString("You have persistent memory via `ctx`. Use these XML commands in your responses (they are processed automatically after you respond):\n")

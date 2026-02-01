@@ -116,6 +116,17 @@ Summary content here.
 <ctx:supersede old="01HQ1234" new="01HQ5678"/>
 ` + "```" + `
 
+### When to Store
+
+Store knowledge when any of these happen:
+- You make or learn about a **decision** — store as ` + "`type=\"decision\"`" + `
+- You discover a user **preference** or project convention — store as ` + "`type=\"fact\"`" + `
+- You see a recurring **approach** or code pattern — store as ` + "`type=\"pattern\"`" + `
+- A debugging session reveals a **root cause** — store as ` + "`type=\"observation\"`" + `
+- You have an unvalidated **idea** worth revisiting — store as ` + "`type=\"hypothesis\"`" + `
+- A question comes up that can't be answered now — store as ` + "`type=\"open-question\"`" + `
+- A long session is ending — review what you'd want to know next time
+
 ### Best Practices
 
 1. Always include a tier tag when remembering

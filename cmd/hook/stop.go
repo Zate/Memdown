@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/zate/ctx/internal/db"
@@ -71,12 +72,46 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Execute commands
+	// Execute commands and track remember successes
 	errs := hookpkg.ExecuteCommandsWithErrors(d, commands)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintf(os.Stderr, "ctx: %v\n", e)
 		}
+	}
+
+	// Count successful remember commands for session tracking
+	rememberCount := 0
+	for _, cmd := range commands {
+		if cmd.Type == "remember" {
+			rememberCount++
+		}
+	}
+	// Subtract failures (conservative: count remember errs)
+	rememberErrCount := 0
+	for _, e := range errs {
+		if strings.HasPrefix(e.Error(), "remember") {
+			rememberErrCount++
+		}
+	}
+	successCount := rememberCount - rememberErrCount
+
+	// Update session store count
+	if successCount > 0 {
+		existing, err := d.GetPending("session_store_count")
+		prev := 0
+		if err == nil && existing != "" {
+			fmt.Sscanf(existing, "%d", &prev)
+		}
+		d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
+	}
+
+	// Store last_session_stores for next session's awareness
+	storeCount, err := d.GetPending("session_store_count")
+	if err == nil && storeCount != "" {
+		d.SetPending("last_session_stores", storeCount)
+	} else {
+		d.SetPending("last_session_stores", "0")
 	}
 
 	fmt.Println("{}")
