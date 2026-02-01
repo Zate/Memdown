@@ -4,3 +4,4 @@ coverage.html
 *.db
 .claude/
 .devloop/
+dist/

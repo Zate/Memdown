@@ -1,12 +1,29 @@
-.PHONY: test test-unit test-fuzz build install clean mcp-config
+.PHONY: test test-unit test-fuzz build install clean mcp-config build-all
 
-# Build
+BINARY_NAME := ctx
+DIST_DIR := dist
+
+# Platforms for cross-compilation
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+
+# Build for current platform
 build:
-	go build -o ctx .
+	go build -o $(BINARY_NAME) .
+
+# Build for all platforms
+build-all: $(PLATFORMS)
+
+$(PLATFORMS):
+	$(eval GOOS := $(word 1,$(subst /, ,$@)))
+	$(eval GOARCH := $(word 2,$(subst /, ,$@)))
+	$(eval EXT := $(if $(filter windows,$(GOOS)),.exe,))
+	@mkdir -p $(DIST_DIR)/$(GOOS)-$(GOARCH)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o $(DIST_DIR)/$(GOOS)-$(GOARCH)/$(BINARY_NAME)$(EXT) .
+	@echo "Built $(DIST_DIR)/$(GOOS)-$(GOARCH)/$(BINARY_NAME)$(EXT)"
 
 # Build and install (binary, database, skill, hooks, CLAUDE.md)
 install: build
-	./ctx install --bin-dir ~/.local/bin
+	./$(BINARY_NAME) install --bin-dir ~/.local/bin
 
 # All tests
 test:
@@ -28,8 +45,9 @@ test-coverage:
 
 # Show MCP configuration for Claude Desktop
 mcp-config: build
-	./ctx install --mcp
+	./$(BINARY_NAME) install --mcp
 
 # Clean
 clean:
-	rm -f ctx coverage.out coverage.html
+	rm -f $(BINARY_NAME) coverage.out coverage.html
+	rm -rf $(DIST_DIR)
