@@ -1,27 +1,28 @@
-.PHONY: test test-unit test-fuzz build clean
-
-CGO_CFLAGS := -DSQLITE_ENABLE_FTS5
-CGO_LDFLAGS := -lm
+.PHONY: test test-unit test-fuzz build install clean
 
 # Build
 build:
-	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" go build -o ctx .
+	go build -o ctx .
+
+# Build and install (binary, database, skill, hooks, CLAUDE.md)
+install: build
+	./ctx install --bin-dir ~/.local/bin
 
 # All tests
 test:
-	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" go test -v ./...
+	go test -v ./...
 
 # Unit tests only
 test-unit:
-	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" go test -v -short ./internal/...
+	go test -v -short ./internal/...
 
 # Fuzz testing
 test-fuzz:
-	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" go test -fuzz=FuzzQueryParser -fuzztime=30s ./internal/query/
+	go test -fuzz=FuzzQueryParser -fuzztime=30s ./internal/query/
 
 # Coverage
 test-coverage:
-	CGO_CFLAGS="$(CGO_CFLAGS)" CGO_LDFLAGS="$(CGO_LDFLAGS)" go test -coverprofile=coverage.out ./...
+	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -24,9 +24,21 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	sqlDB, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on")
+	sqlDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Set PRAGMAs explicitly (modernc driver doesn't support DSN query params)
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+		"PRAGMA foreign_keys=ON",
+	} {
+		if _, err := sqlDB.Exec(pragma); err != nil {
+			sqlDB.Close()
+			return nil, fmt.Errorf("failed to execute %s: %w", pragma, err)
+		}
 	}
 
 	d := &DB{db: sqlDB}

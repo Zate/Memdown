@@ -2,3 +2,5 @@ ctx
 coverage.out
 coverage.html
 *.db
+.claude/
+.devloop/

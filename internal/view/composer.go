@@ -86,6 +86,14 @@ func RenderMarkdown(result *ComposeResult) string {
 	fmt.Fprintf(&b, "<!-- ctx: %d nodes, %d tokens, rendered at %s -->\n\n",
 		result.NodeCount, result.TotalTokens, result.RenderedAt.Format(time.RFC3339))
 
+	// Always include a compact usage primer so the agent knows how to use ctx
+	b.WriteString("You have persistent memory via `ctx`. Use these XML commands in your responses (they are processed automatically after you respond):\n")
+	b.WriteString("- `<ctx:remember type=\"fact|decision|pattern|observation\" tags=\"tier:reference,project:X\">content</ctx:remember>` — store knowledge\n")
+	b.WriteString("- `<ctx:recall query=\"type:decision AND tag:project:X\"/>` — retrieve knowledge (results appear on next prompt)\n")
+	b.WriteString("- `<ctx:status/>` — check memory status\n")
+	b.WriteString("- `<ctx:task name=\"X\" action=\"start|end\"/>` — mark task boundaries\n")
+	b.WriteString("Always include a `tier:` tag (pinned, reference, working, off-context). Invoke the `ctx` skill for full reference.\n\n")
+
 	// Group by tier then type
 	groups := map[string][]*db.Node{
 		"pinned":    {},

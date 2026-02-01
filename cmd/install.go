@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 var (
 	installDryRun bool
 	installForce  bool
+	installBinDir string
 )
 
 var installCmd = &cobra.Command{
@@ -28,6 +30,7 @@ var installCmd = &cobra.Command{
 func init() {
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "Preview changes without applying them")
 	installCmd.Flags().BoolVar(&installForce, "force", false, "Force overwrite of existing binary")
+	installCmd.Flags().StringVar(&installBinDir, "bin-dir", "", "Directory to install binary into (skips interactive prompt)")
 	rootCmd.AddCommand(installCmd)
 }
 
@@ -156,52 +159,60 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("HOME environment variable not set")
 	}
 
-	prefix := ""
-	if installDryRun {
-		prefix = "[dry-run] "
+	// 1. Determine binary install location and install
+	binDir, err := chooseBinDir(home)
+	if err != nil {
+		return err
 	}
 
-	// 1. Install binary to ~/.local/bin/ctx
-	binaryResult, err := installBinary(home, prefix)
+	binaryResult, err := installBinary(binDir)
 	if err != nil {
 		return err
 	}
 
 	// 2. Create ~/.ctx/ and initialize database
-	dbResult, err := installDatabase(home, prefix)
+	dbResult, err := installDatabase(home)
 	if err != nil {
 		return err
 	}
 
 	// 3. Install skill file
-	skillResult, err := installSkill(home, prefix)
+	skillResult, err := installSkill(home)
 	if err != nil {
 		return err
 	}
 
 	// 4. Configure hooks in ~/.claude/settings.json
-	hooksResult, err := installHooks(home, prefix)
+	hooksResult, err := installHooks(home)
 	if err != nil {
 		return err
 	}
 
-	// 5. Verify installation
+	// 5. Add ctx section to ~/.claude/CLAUDE.md
+	claudeMdResult, err := installClaudeMd(home)
+	if err != nil {
+		return err
+	}
+
+	// 6. Verify installation
 	fmt.Println()
-	fmt.Printf("%s=== ctx installation summary ===\n", prefix)
+	if installDryRun {
+		fmt.Println("[dry-run] === ctx installation summary ===")
+	} else {
+		fmt.Println("=== ctx installation summary ===")
+	}
 	fmt.Printf("  Binary:   %s\n", binaryResult)
 	fmt.Printf("  Database: %s\n", dbResult)
 	fmt.Printf("  Skill:    %s\n", skillResult)
 	fmt.Printf("  Hooks:    %s\n", hooksResult)
+	fmt.Printf("  CLAUDE.md: %s\n", claudeMdResult)
 
-	// PATH check
-	if !installDryRun {
-		binDir := filepath.Join(home, ".local", "bin")
-		if !dirInPath(binDir) {
-			fmt.Println()
-			fmt.Printf("  WARNING: %s is not in your PATH.\n", binDir)
-			fmt.Println("  Add it to your shell profile:")
-			fmt.Printf("    export PATH=\"%s:$PATH\"\n", binDir)
-		}
+	// PATH check — warn if the chosen directory isn't in PATH
+	if !installDryRun && !dirInPath(binDir) {
+		fmt.Println()
+		fmt.Printf("  WARNING: %s is not in your PATH.\n", binDir)
+		fmt.Println("  Add it to your shell profile:")
+		fmt.Printf("    export PATH=\"%s:$PATH\"\n", binDir)
 	}
 
 	fmt.Println()
@@ -214,9 +225,112 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// installBinary copies the current executable to ~/.local/bin/ctx.
-func installBinary(home, _ string) (string, error) {
-	binDir := filepath.Join(home, ".local", "bin")
+// chooseBinDir determines where to install the ctx binary.
+// Priority: --bin-dir flag > interactive prompt (scanning PATH for writable dirs).
+func chooseBinDir(home string) (string, error) {
+	// If explicitly provided via flag, use it directly.
+	if installBinDir != "" {
+		return installBinDir, nil
+	}
+
+	// Find candidate directories from PATH that are writable.
+	candidates := findWritableBinDirs(home)
+
+	// Always include ~/.local/bin as a fallback even if not currently in PATH.
+	localBin := filepath.Join(home, ".local", "bin")
+	if !containsDir(candidates, localBin) {
+		candidates = append(candidates, localBin)
+	}
+
+	if len(candidates) == 0 {
+		return localBin, nil
+	}
+
+	// Pick the best default: prefer ~/.local/bin, then /usr/local/bin, then first writable.
+	best := candidates[0]
+	for _, c := range candidates {
+		if c == localBin {
+			best = c
+			break
+		}
+		if c == "/usr/local/bin" && best != localBin {
+			best = c
+		}
+	}
+
+	// In dry-run mode, don't prompt — just use the best candidate.
+	if installDryRun {
+		return best, nil
+	}
+
+	// Prompt the user.
+	fmt.Printf("Install ctx binary to: %s\n", best)
+	if len(candidates) > 1 {
+		fmt.Println("Other directories in your PATH:")
+		for i, c := range candidates {
+			if c == best {
+				continue
+			}
+			fmt.Printf("  %s\n", c)
+			if i >= 5 {
+				fmt.Printf("  ... (%d more)\n", len(candidates)-i-1)
+				break
+			}
+		}
+	}
+	fmt.Print("Press Enter to accept, or type a different path: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	line = strings.TrimSpace(line)
+
+	if line != "" {
+		return line, nil
+	}
+	return best, nil
+}
+
+// findWritableBinDirs returns directories from PATH that exist and are writable by the current user.
+func findWritableBinDirs(home string) []string {
+	seen := make(map[string]bool)
+	var dirs []string
+
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+
+		// Check writability by trying to open a temp file.
+		probe := filepath.Join(dir, ".ctx-probe-"+fmt.Sprintf("%d", os.Getpid()))
+		f, err := os.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if err != nil {
+			continue
+		}
+		f.Close()
+		os.Remove(probe)
+
+		dirs = append(dirs, dir)
+	}
+	return dirs
+}
+
+func containsDir(dirs []string, target string) bool {
+	for _, d := range dirs {
+		if d == target {
+			return true
+		}
+	}
+	return false
+}
+
+// installBinary copies the current executable to the chosen bin directory.
+func installBinary(binDir string) (string, error) {
 	destPath := filepath.Join(binDir, "ctx")
 
 	srcPath, err := os.Executable()
@@ -254,7 +368,7 @@ func installBinary(home, _ string) (string, error) {
 }
 
 // installDatabase creates ~/.ctx/ and initializes the database.
-func installDatabase(home, _ string) (string, error) {
+func installDatabase(home string) (string, error) {
 	ctxDir := filepath.Join(home, ".ctx")
 	dbPath := filepath.Join(ctxDir, "store.db")
 
@@ -279,7 +393,7 @@ func installDatabase(home, _ string) (string, error) {
 }
 
 // installSkill writes the skill file to ~/.claude/skills/ctx/SKILL.md.
-func installSkill(home, _ string) (string, error) {
+func installSkill(home string) (string, error) {
 	skillDir := filepath.Join(home, ".claude", "skills", "ctx")
 	skillPath := filepath.Join(skillDir, "SKILL.md")
 
@@ -302,7 +416,7 @@ func installSkill(home, _ string) (string, error) {
 }
 
 // installHooks merges ctx hooks into ~/.claude/settings.json.
-func installHooks(home, _ string) (string, error) {
+func installHooks(home string) (string, error) {
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
 
 	// Read existing settings
@@ -441,6 +555,104 @@ func mergeHooks(settings map[string]any) {
 		}
 		hooksMap[hookType] = append(existingArr, ctxArr...)
 	}
+}
+
+// ctxClaudeMdSection is the content added to ~/.claude/CLAUDE.md.
+const ctxClaudeMdMarker = "<!-- ctx:claude-md -->"
+
+var ctxClaudeMdSection = ctxClaudeMdMarker + `
+## Persistent Memory (ctx)
+
+You have persistent memory across conversations via ` + "`ctx`" + `. It is already configured and active — hooks automatically inject your stored knowledge at session start and parse commands from your responses.
+
+### Quick Reference
+
+Store knowledge (processed after you respond):
+` + "```" + `xml
+<ctx:remember type="fact|decision|pattern|observation" tags="tier:reference,project:X">
+Content to remember.
+</ctx:remember>
+` + "```" + `
+
+Retrieve knowledge (results injected on next prompt):
+` + "```" + `xml
+<ctx:recall query="type:decision AND tag:project:X"/>
+` + "```" + `
+
+Other commands: ` + "`<ctx:status/>`" + `, ` + "`<ctx:task name=\"X\" action=\"start|end\"/>`" + `, ` + "`<ctx:summarize>`" + `, ` + "`<ctx:link>`" + `, ` + "`<ctx:supersede>`" + `, ` + "`<ctx:expand>`" + `.
+
+### Rules
+- Always include a ` + "`tier:`" + ` tag: ` + "`pinned`" + ` (always loaded), ` + "`reference`" + ` (loaded by default), ` + "`working`" + ` (current task), ` + "`off-context`" + ` (archived)
+- Commands in code blocks are ignored (only bare commands in your response text are processed)
+- Use ` + "`project:X`" + ` tags for cross-project organization
+- Invoke the ` + "`ctx`" + ` skill for full documentation
+<!-- ctx:claude-md:end -->
+`
+
+// installClaudeMd adds a ctx section to ~/.claude/CLAUDE.md, creating it if needed.
+func installClaudeMd(home string) (string, error) {
+	claudeDir := filepath.Join(home, ".claude")
+	mdPath := filepath.Join(claudeDir, "CLAUDE.md")
+
+	existing, err := os.ReadFile(mdPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to read %s: %w", mdPath, err)
+	}
+
+	content := string(existing)
+
+	// Check if already present
+	if strings.Contains(content, ctxClaudeMdMarker) {
+		// Replace existing section
+		startIdx := strings.Index(content, ctxClaudeMdMarker)
+		endMarker := "<!-- ctx:claude-md:end -->\n"
+		endIdx := strings.Index(content, endMarker)
+		if endIdx >= 0 {
+			endIdx += len(endMarker)
+			oldSection := content[startIdx:endIdx]
+			if oldSection == ctxClaudeMdSection {
+				return fmt.Sprintf("%s (already up to date)", mdPath), nil
+			}
+			if installDryRun {
+				return fmt.Sprintf("%s (would update ctx section)", mdPath), nil
+			}
+			content = content[:startIdx] + ctxClaudeMdSection + content[endIdx:]
+		} else {
+			return fmt.Sprintf("%s (already configured)", mdPath), nil
+		}
+	} else {
+		if installDryRun {
+			if len(existing) == 0 {
+				return fmt.Sprintf("%s (would create with ctx section)", mdPath), nil
+			}
+			return fmt.Sprintf("%s (would append ctx section)", mdPath), nil
+		}
+		// Append to existing content
+		if len(content) > 0 && !strings.HasSuffix(content, "\n\n") {
+			if !strings.HasSuffix(content, "\n") {
+				content += "\n"
+			}
+			content += "\n"
+		}
+		content += ctxClaudeMdSection
+	}
+
+	if installDryRun {
+		return fmt.Sprintf("%s (would update)", mdPath), nil
+	}
+
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create %s: %w", claudeDir, err)
+	}
+
+	if err := os.WriteFile(mdPath, []byte(content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write %s: %w", mdPath, err)
+	}
+
+	if len(existing) == 0 {
+		return fmt.Sprintf("%s (created)", mdPath), nil
+	}
+	return fmt.Sprintf("%s (ctx section added)", mdPath), nil
 }
 
 // filesIdentical returns true if two files have the same SHA-256 hash.
