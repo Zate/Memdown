@@ -1,7 +1,6 @@
 package hook
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -40,17 +39,21 @@ func runStop(cmd *cobra.Command, args []string) error {
 		response = stopResponse
 	} else {
 		// Read stdin for hook input
-		var input map[string]interface{}
-		decoder := json.NewDecoder(os.Stdin)
-		if err := decoder.Decode(&input); err != nil {
+		transcriptPath, err := readTranscriptPathFromStdin()
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "ctx: failed to read hook input: %v\n", err)
 			fmt.Println("{}")
 			return nil
 		}
 
-		// Try to get transcript path and read last assistant response
-		if transcriptPath, ok := input["transcript_path"].(string); ok && transcriptPath != "" {
-			resp, err := readLastAssistantResponse(transcriptPath)
+		if transcriptPath != "" {
+			// Use cursor to only read new content since last prompt-submit
+			var cursor int64
+			if val, err := d.GetPending("transcript_cursor"); err == nil && val != "" {
+				fmt.Sscanf(val, "%d", &cursor)
+			}
+
+			resp, _, err := readAssistantResponsesFromOffset(transcriptPath, cursor)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "ctx: failed to read transcript: %v\n", err)
 				fmt.Println("{}")
@@ -118,48 +121,3 @@ func runStop(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func readLastAssistantResponse(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	// JSONL format - each line is a JSON object
-	lines := splitLines(string(data))
-	var lastResponse string
-
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		var entry map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			continue
-		}
-
-		if entry["type"] == "assistant" {
-			if msg, ok := entry["message"].(map[string]interface{}); ok {
-				if content, ok := msg["content"].(string); ok {
-					lastResponse = content
-				}
-			}
-		}
-	}
-
-	return lastResponse, nil
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
-}

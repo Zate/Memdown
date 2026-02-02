@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zate/ctx/internal/db"
+	hookpkg "github.com/zate/ctx/internal/hook"
 	"github.com/zate/ctx/internal/query"
 )
 
@@ -28,6 +29,51 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	defer d.Close()
+
+	// Parse ctx commands from transcript (incremental via cursor)
+	transcriptPath, _ := readTranscriptPathFromStdin()
+	if transcriptPath != "" {
+		var cursor int64
+		if val, err := d.GetPending("transcript_cursor"); err == nil && val != "" {
+			fmt.Sscanf(val, "%d", &cursor)
+		}
+
+		response, newOffset, err := readAssistantResponsesFromOffset(transcriptPath, cursor)
+		if err == nil && response != "" {
+			commands := hookpkg.ParseCtxCommands(response)
+			if len(commands) > 0 {
+				errs := hookpkg.ExecuteCommandsWithErrors(d, commands)
+				for _, e := range errs {
+					fmt.Fprintf(os.Stderr, "ctx: %v\n", e)
+				}
+
+				// Count successful remembers
+				rememberCount := 0
+				for _, cmd := range commands {
+					if cmd.Type == "remember" {
+						rememberCount++
+					}
+				}
+				rememberErrCount := 0
+				for _, e := range errs {
+					if strings.HasPrefix(e.Error(), "remember") {
+						rememberErrCount++
+					}
+				}
+				if successCount := rememberCount - rememberErrCount; successCount > 0 {
+					existing, err := d.GetPending("session_store_count")
+					prev := 0
+					if err == nil && existing != "" {
+						fmt.Sscanf(existing, "%d", &prev)
+					}
+					d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
+				}
+			}
+		}
+		if err == nil {
+			d.SetPending("transcript_cursor", fmt.Sprintf("%d", newOffset))
+		}
+	}
 
 	var contextParts []string
 

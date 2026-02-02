@@ -40,6 +40,7 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	// Reset session counters for new session
 	d.SetPending("session_turn_count", "0")
 	d.SetPending("session_store_count", "0")
+	d.DeletePending("transcript_cursor")
 
 	// Get default view query
 	var queryStr string
