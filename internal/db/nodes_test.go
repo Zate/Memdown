@@ -226,3 +226,46 @@ func TestNodeList_ExcludesSuperseded(t *testing.T) {
 	assert.Len(t, nodes, 1)
 	assert.Equal(t, n2.ID, nodes[0].ID)
 }
+
+func TestFindByTypeAndContent(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	node, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "unique content"})
+
+	// Should find the existing node
+	found, err := d.FindByTypeAndContent("fact", "unique content")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, node.ID, found.ID)
+
+	// Different type should not match
+	found, err = d.FindByTypeAndContent("decision", "unique content")
+	require.NoError(t, err)
+	assert.Nil(t, found)
+
+	// Different content should not match
+	found, err = d.FindByTypeAndContent("fact", "other content")
+	require.NoError(t, err)
+	assert.Nil(t, found)
+}
+
+func TestFindByTypeAndContent_IgnoresSuperseded(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	n1, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "old fact"})
+	n2, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "new fact"})
+
+	// Mark n1 as superseded
+	_, _ = d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", n2.ID, n1.ID)
+
+	// Should not find the superseded node
+	found, err := d.FindByTypeAndContent("fact", "old fact")
+	require.NoError(t, err)
+	assert.Nil(t, found)
+
+	// Should still find the active node
+	found, err = d.FindByTypeAndContent("fact", "new fact")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, n2.ID, found.ID)
+}

@@ -279,6 +279,19 @@ func handleRemember(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		input.Summary = &s
 	}
 
+	// Check for existing node with same type and content to avoid duplicates
+	existing, err := d.FindByTypeAndContent(nodeType, content)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to check duplicates: %v", err)), nil
+	}
+	if existing != nil {
+		// Merge any new tags onto the existing node
+		for _, tag := range tags {
+			_ = d.AddTag(existing.ID, tag)
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Node %s already exists (type: %s, %d tokens) — tags merged", existing.ID, existing.Type, existing.TokenEstimate)), nil
+	}
+
 	node, err := d.CreateNode(input)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create node: %v", err)), nil

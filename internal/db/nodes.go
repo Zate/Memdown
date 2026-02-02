@@ -123,6 +123,22 @@ func (d *DB) CreateNode(input CreateNodeInput) (*Node, error) {
 	}, nil
 }
 
+// FindByTypeAndContent returns an existing active (non-superseded) node with
+// matching type and content, or nil if none exists.
+func (d *DB) FindByTypeAndContent(nodeType, content string) (*Node, error) {
+	var id string
+	err := d.db.QueryRow(
+		`SELECT id FROM nodes WHERE type = ? AND content = ? AND superseded_by IS NULL LIMIT 1`,
+		nodeType, content).Scan(&id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find node: %w", err)
+	}
+	return d.GetNode(id)
+}
+
 func (d *DB) GetNode(id string) (*Node, error) {
 	node := &Node{}
 	var summary, supersededBy sql.NullString

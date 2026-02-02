@@ -86,6 +86,19 @@ func executeRemember(d *db.DB, cmd CtxCommand) error {
 		}
 	}
 
+	// Check for existing node with same type and content to avoid duplicates
+	existing, err := d.FindByTypeAndContent(nodeType, content)
+	if err != nil {
+		return fmt.Errorf("remember: failed to check for duplicates: %w", err)
+	}
+	if existing != nil {
+		// Node already exists — merge any new tags
+		for _, tag := range tags {
+			_ = d.AddTag(existing.ID, tag)
+		}
+		return nil
+	}
+
 	_, err = d.CreateNode(db.CreateNodeInput{
 		Type:    nodeType,
 		Content: content,
