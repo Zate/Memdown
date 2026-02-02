@@ -1,4 +1,4 @@
-.PHONY: test test-unit test-fuzz build install clean mcp-config build-all
+.PHONY: test test-unit test-fuzz build install clean mcp-config build-all lint
 
 BINARY_NAME := ctx
 DIST_DIR := dist
@@ -50,6 +50,10 @@ test-coverage:
 # Show MCP configuration for Claude Desktop
 mcp-config: build
 	./$(BINARY_NAME) install --mcp
+
+# Lint
+lint:
+	golangci-lint run ./...
 
 # Clean
 clean:
