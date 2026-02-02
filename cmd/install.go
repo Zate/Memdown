@@ -167,6 +167,10 @@ var ctxHooks = map[string]any{
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
+	fmt.Fprintln(os.Stderr, "DEPRECATED: 'ctx install' is deprecated. Use the ctx plugin for Claude Code instead.")
+	fmt.Fprintln(os.Stderr, "For database-only setup, use 'ctx init'.")
+	fmt.Fprintln(os.Stderr, "")
+
 	home := os.Getenv("HOME")
 	if home == "" {
 		return fmt.Errorf("HOME environment variable not set")
