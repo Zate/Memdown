@@ -14,9 +14,8 @@ type CtxCommand struct {
 
 var (
 	// Match opening tags: <ctx:command attr="value" ...> or self-closing <ctx:command attr="value" .../>
-	openTagRe  = regexp.MustCompile(`<ctx:(\w+)((?:\s+\w+="[^"]*")*)\s*/?>`)
-	closeTagRe = regexp.MustCompile(`</ctx:(\w+)>`)
-	attrRe     = regexp.MustCompile(`(\w+)="([^"]*)"`)
+	openTagRe = regexp.MustCompile(`<ctx:(\w+)((?:\s+\w+="[^"]*")*)\s*/?>`)
+	attrRe    = regexp.MustCompile(`(\w+)="([^"]*)"`)
 )
 
 // ParseCtxCommands parses <ctx:*> commands from Claude's response.

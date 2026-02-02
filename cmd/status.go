@@ -47,22 +47,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	totalNodes := 0
 	for rows.Next() {
 		var tc typeCount
-		rows.Scan(&tc.Type, &tc.Count)
+		_ = rows.Scan(&tc.Type, &tc.Count)
 		typeCounts = append(typeCounts, tc)
 		totalNodes += tc.Count
 	}
 
 	// Total tokens
 	var totalTokens int
-	d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
+	_ = d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
 
 	// Edge count
 	var edgeCount int
-	d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
 
 	// Unique tags
 	var tagCount int
-	d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
+	_ = d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
 
 	// Tier breakdown
 	type tierInfo struct {
@@ -82,7 +82,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	var tiers []tierInfo
 	for tierRows.Next() {
 		var ti tierInfo
-		tierRows.Scan(&ti.Tier, &ti.Nodes, &ti.Tokens)
+		_ = tierRows.Scan(&ti.Tier, &ti.Nodes, &ti.Tokens)
 		tiers = append(tiers, ti)
 	}
 

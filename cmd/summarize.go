@@ -22,7 +22,7 @@ var summarizeCmd = &cobra.Command{
 
 func init() {
 	summarizeCmd.Flags().StringVar(&summarizeContent, "content", "", "Summary content (required)")
-	summarizeCmd.MarkFlagRequired("content")
+	_ = summarizeCmd.MarkFlagRequired("content")
 	summarizeCmd.Flags().BoolVar(&archiveSources, "archive-sources", false, "Tag sources as tier:off-context")
 	rootCmd.AddCommand(summarizeCmd)
 }
@@ -49,10 +49,10 @@ func runSummarize(cmd *cobra.Command, args []string) error {
 		}
 
 		if archiveSources {
-			d.RemoveTag(sourceID, "tier:working")
-			d.RemoveTag(sourceID, "tier:reference")
-			d.RemoveTag(sourceID, "tier:pinned")
-			d.AddTag(sourceID, "tier:off-context")
+			_ = d.RemoveTag(sourceID, "tier:working")
+			_ = d.RemoveTag(sourceID, "tier:reference")
+			_ = d.RemoveTag(sourceID, "tier:pinned")
+			_ = d.AddTag(sourceID, "tier:off-context")
 		}
 	}
 

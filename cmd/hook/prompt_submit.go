@@ -35,7 +35,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 	if transcriptPath != "" {
 		var cursor int64
 		if val, err := d.GetPending("transcript_cursor"); err == nil && val != "" {
-			fmt.Sscanf(val, "%d", &cursor)
+			_, _ = fmt.Sscanf(val, "%d", &cursor)
 		}
 
 		response, newOffset, err := readAssistantResponsesFromOffset(transcriptPath, cursor)
@@ -64,14 +64,14 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 					existing, err := d.GetPending("session_store_count")
 					prev := 0
 					if err == nil && existing != "" {
-						fmt.Sscanf(existing, "%d", &prev)
+						_, _ = fmt.Sscanf(existing, "%d", &prev)
 					}
-					d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
+					_ = d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
 				}
 			}
 		}
 		if err == nil {
-			d.SetPending("transcript_cursor", fmt.Sprintf("%d", newOffset))
+			_ = d.SetPending("transcript_cursor", fmt.Sprintf("%d", newOffset))
 		}
 	}
 
@@ -99,28 +99,28 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 			b.WriteString("\n---\n")
 			contextParts = append(contextParts, b.String())
 		}
-		d.DeletePending("recall_query")
+		_ = d.DeletePending("recall_query")
 	}
 
 	// Check for recall_results (pre-computed)
 	recallResults, err := d.GetPending("recall_results")
 	if err == nil && recallResults != "" {
 		contextParts = append(contextParts, recallResults)
-		d.DeletePending("recall_results")
+		_ = d.DeletePending("recall_results")
 	}
 
 	// Check for status output
 	statusOutput, err := d.GetPending("status_output")
 	if err == nil && statusOutput != "" {
 		contextParts = append(contextParts, "## Memory Status\n\n"+statusOutput+"\n\n---\n")
-		d.DeletePending("status_output")
+		_ = d.DeletePending("status_output")
 	}
 
 	// Check for expand nodes
 	expandJSON, err := d.GetPending("expand_nodes")
 	if err == nil && expandJSON != "" {
 		var expandIDs []string
-		json.Unmarshal([]byte(expandJSON), &expandIDs)
+		_ = json.Unmarshal([]byte(expandJSON), &expandIDs)
 
 		if len(expandIDs) > 0 {
 			var b strings.Builder
@@ -139,7 +139,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 			b.WriteString("\n---\n")
 			contextParts = append(contextParts, b.String())
 		}
-		d.DeletePending("expand_nodes")
+		_ = d.DeletePending("expand_nodes")
 	}
 
 	// Increment session turn count
@@ -148,7 +148,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 		turnCount, _ = strconv.Atoi(val)
 	}
 	turnCount++
-	d.SetPending("session_turn_count", strconv.Itoa(turnCount))
+	_ = d.SetPending("session_turn_count", strconv.Itoa(turnCount))
 
 	// Nudge if 4+ turns with no stores this session
 	if turnCount >= 4 {

@@ -181,13 +181,13 @@ func (d *DB) migrate() error {
 
 			for _, s := range m.sqls {
 				if _, err := tx.Exec(s); err != nil {
-					tx.Rollback()
+					_ = tx.Rollback()
 					return fmt.Errorf("migration %d failed: %w", m.version, err)
 				}
 			}
 
 			if err := d.setSchemaVersion(tx, m.version); err != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				return fmt.Errorf("failed to set schema version %d: %w", m.version, err)
 			}
 

@@ -329,10 +329,10 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	defer d.Close()
 
 	var totalNodes, totalTokens, edgeCount, tagCount int
-	d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
-	d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
-	d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
-	d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
+	_ = d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
+	_ = d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
+	_ = d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
 
 	type typeCount struct {
 		Type  string `json:"type"`
@@ -347,7 +347,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	var typeCounts []typeCount
 	for rows.Next() {
 		var tc typeCount
-		rows.Scan(&tc.Type, &tc.Count)
+		_ = rows.Scan(&tc.Type, &tc.Count)
 		typeCounts = append(typeCounts, tc)
 	}
 
@@ -368,7 +368,7 @@ func handleStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	var tiers []tierInfo
 	for tierRows.Next() {
 		var ti tierInfo
-		tierRows.Scan(&ti.Tier, &ti.Nodes, &ti.Tokens)
+		_ = tierRows.Scan(&ti.Tier, &ti.Nodes, &ti.Tokens)
 		tiers = append(tiers, ti)
 	}
 
@@ -685,10 +685,10 @@ func handleSummarize(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 			return mcp.NewToolResultError(fmt.Sprintf("failed to link to %s: %v", sourceID, err)), nil
 		}
 		if archive {
-			d.RemoveTag(sourceID, "tier:working")
-			d.RemoveTag(sourceID, "tier:reference")
-			d.RemoveTag(sourceID, "tier:pinned")
-			d.AddTag(sourceID, "tier:off-context")
+			_ = d.RemoveTag(sourceID, "tier:working")
+			_ = d.RemoveTag(sourceID, "tier:reference")
+			_ = d.RemoveTag(sourceID, "tier:pinned")
+			_ = d.AddTag(sourceID, "tier:off-context")
 		}
 	}
 
@@ -764,8 +764,8 @@ func handleTask(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 			return mcp.NewToolResultError(fmt.Sprintf("failed to find task nodes: %v", err)), nil
 		}
 		for _, n := range nodes {
-			d.RemoveTag(n.ID, "tier:working")
-			d.AddTag(n.ID, "tier:reference")
+			_ = d.RemoveTag(n.ID, "tier:working")
+			_ = d.AddTag(n.ID, "tier:reference")
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Task '%s' ended (%d node(s) moved to tier:reference)", name, len(nodes))), nil
 

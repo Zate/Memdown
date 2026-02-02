@@ -68,7 +68,7 @@ func TestHandleRecall(t *testing.T) {
 	setupMCPTest(t)
 
 	// Store something first
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type":    "fact",
 		"content": "Testing recall functionality",
 		"tags":    "tier:reference",
@@ -97,12 +97,12 @@ func TestHandleStatus(t *testing.T) {
 	setupMCPTest(t)
 
 	// Add some nodes
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type":    "fact",
 		"content": "fact one",
 		"tags":    "tier:reference",
 	}))
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type":    "decision",
 		"content": "decision one",
 		"tags":    "tier:pinned",
@@ -120,7 +120,7 @@ func TestHandleStatus(t *testing.T) {
 func TestHandleCompose(t *testing.T) {
 	setupMCPTest(t)
 
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type":    "fact",
 		"content": "composed fact",
 		"tags":    "tier:reference",
@@ -166,13 +166,13 @@ func TestHandleShow_NotFound(t *testing.T) {
 func TestHandleList(t *testing.T) {
 	setupMCPTest(t)
 
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type": "fact", "content": "list item 1",
 	}))
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type": "fact", "content": "list item 2",
 	}))
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type": "decision", "content": "list item 3",
 	}))
 
@@ -199,10 +199,10 @@ func TestHandleList(t *testing.T) {
 func TestHandleSearch(t *testing.T) {
 	setupMCPTest(t)
 
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type": "fact", "content": "SQLite uses WAL mode for concurrency",
 	}))
-	handleRemember(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleRemember(context.Background(), makeReq(map[string]interface{}{
 		"type": "fact", "content": "Redis is an in-memory store",
 	}))
 
@@ -355,7 +355,7 @@ func TestHandleRelated(t *testing.T) {
 	id1 := extractNodeID(r1.Content[0].(mcp.TextContent).Text)
 	id2 := extractNodeID(r2.Content[0].(mcp.TextContent).Text)
 
-	handleLink(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleLink(context.Background(), makeReq(map[string]interface{}{
 		"from": id1, "to": id2, "type": "RELATES_TO",
 	}))
 
@@ -379,7 +379,7 @@ func TestHandleTrace(t *testing.T) {
 	id1 := extractNodeID(r1.Content[0].(mcp.TextContent).Text)
 	id2 := extractNodeID(r2.Content[0].(mcp.TextContent).Text)
 
-	handleLink(context.Background(), makeReq(map[string]interface{}{
+	_, _ = handleLink(context.Background(), makeReq(map[string]interface{}{
 		"from": id2, "to": id1, "type": "DERIVED_FROM",
 	}))
 

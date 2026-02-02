@@ -12,9 +12,9 @@ import (
 func TestFTSSearch(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The quick brown fox"})
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The lazy dog"})
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "Something else entirely"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The quick brown fox"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The lazy dog"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "Something else entirely"})
 
 	results, err := d.Search("quick")
 
@@ -26,7 +26,7 @@ func TestFTSSearch(t *testing.T) {
 func TestFTSSearch_NoResults(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The quick brown fox"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "The quick brown fox"})
 
 	results, err := d.Search("elephant")
 
@@ -42,7 +42,7 @@ func TestFTSSearch_UpdatedContent(t *testing.T) {
 	results1, _ := d.Search("original")
 	assert.Len(t, results1, 1)
 
-	d.UpdateNode(node.ID, db.UpdateNodeInput{Content: testutil.Ptr("updated content")})
+	_, _ = d.UpdateNode(node.ID, db.UpdateNodeInput{Content: testutil.Ptr("updated content")})
 
 	results2, _ := d.Search("original")
 	assert.Empty(t, results2)
@@ -59,7 +59,7 @@ func TestFTSSearch_DeletedContent(t *testing.T) {
 	results1, _ := d.Search("deletable")
 	assert.Len(t, results1, 1)
 
-	d.DeleteNode(node.ID)
+	_ = d.DeleteNode(node.ID)
 
 	results2, _ := d.Search("deletable")
 	assert.Empty(t, results2)

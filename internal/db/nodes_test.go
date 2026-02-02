@@ -190,9 +190,9 @@ func TestNodeList(t *testing.T) {
 func TestNodeList_FilterByType(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
-	d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "b"})
-	d.CreateNode(db.CreateNodeInput{Type: "decision", Content: "c"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "b"})
+	_, _ = d.CreateNode(db.CreateNodeInput{Type: "decision", Content: "c"})
 
 	nodes, err := d.ListNodes(db.ListOptions{Type: "fact"})
 
@@ -204,7 +204,7 @@ func TestNodeList_Limit(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	for i := 0; i < 10; i++ {
-		d.CreateNode(db.CreateNodeInput{Type: "fact", Content: fmt.Sprintf("%d", i)})
+		_, _ = d.CreateNode(db.CreateNodeInput{Type: "fact", Content: fmt.Sprintf("%d", i)})
 	}
 
 	nodes, err := d.ListNodes(db.ListOptions{Limit: 3})
@@ -219,7 +219,7 @@ func TestNodeList_ExcludesSuperseded(t *testing.T) {
 	n1, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "old"})
 	n2, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "new"})
 
-	d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", n2.ID, n1.ID)
+	_, _ = d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", n2.ID, n1.ID)
 
 	nodes, err := d.ListNodes(db.ListOptions{})
 	require.NoError(t, err)

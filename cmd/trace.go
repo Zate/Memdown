@@ -64,7 +64,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 				}
 			}
 			for _, e := range edges {
-				walk(e.FromID, depth+1)
+				_ = walk(e.FromID, depth+1)
 			}
 		} else {
 			edgeList, _ := d.GetEdgesFrom(id)
@@ -74,7 +74,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 				}
 			}
 			for _, e := range edges {
-				walk(e.ToID, depth+1)
+				_ = walk(e.ToID, depth+1)
 			}
 		}
 		return nil

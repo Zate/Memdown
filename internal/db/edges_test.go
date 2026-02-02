@@ -62,7 +62,7 @@ func TestEdgeCascadeDelete(t *testing.T) {
 
 	n1, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
 	n2, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "b"})
-	d.CreateEdge(n1.ID, n2.ID, "DEPENDS_ON")
+	_, _ = d.CreateEdge(n1.ID, n2.ID, "DEPENDS_ON")
 
 	err := d.DeleteNode(n1.ID)
 	assert.NoError(t, err)
@@ -96,8 +96,8 @@ func TestEdgeGetDirections(t *testing.T) {
 	n2, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "b"})
 	n3, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "c"})
 
-	d.CreateEdge(n1.ID, n2.ID, "DEPENDS_ON")
-	d.CreateEdge(n3.ID, n1.ID, "RELATES_TO")
+	_, _ = d.CreateEdge(n1.ID, n2.ID, "DEPENDS_ON")
+	_, _ = d.CreateEdge(n3.ID, n1.ID, "RELATES_TO")
 
 	outEdges, _ := d.GetEdges(n1.ID, "out")
 	assert.Len(t, outEdges, 1)

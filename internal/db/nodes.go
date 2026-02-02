@@ -84,7 +84,7 @@ func (d *DB) CreateNode(input CreateNodeInput) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var summary sql.NullString
 	if input.Summary != nil {

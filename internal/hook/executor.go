@@ -132,12 +132,14 @@ func executeSummarize(d *db.DB, cmd CtxCommand) error {
 	}
 
 	for _, sourceID := range nodeIDs {
-		d.CreateEdge(summary.ID, sourceID, "DERIVED_FROM")
+		if _, err := d.CreateEdge(summary.ID, sourceID, "DERIVED_FROM"); err != nil {
+			return fmt.Errorf("summarize: failed to create edge: %w", err)
+		}
 		if archive {
-			d.RemoveTag(sourceID, "tier:working")
-			d.RemoveTag(sourceID, "tier:reference")
-			d.RemoveTag(sourceID, "tier:pinned")
-			d.AddTag(sourceID, "tier:off-context")
+			_ = d.RemoveTag(sourceID, "tier:working")
+			_ = d.RemoveTag(sourceID, "tier:reference")
+			_ = d.RemoveTag(sourceID, "tier:pinned")
+			_ = d.AddTag(sourceID, "tier:off-context")
 		}
 	}
 
@@ -162,10 +164,10 @@ func executeLink(d *db.DB, cmd CtxCommand) error {
 func executeStatus(d *db.DB) error {
 	// Generate status text and store in pending
 	var totalNodes, totalTokens, edgeCount, tagCount int
-	d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
-	d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
-	d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
-	d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
+	_ = d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
+	_ = d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
+	_ = d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
+	_ = d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
 
 	status := fmt.Sprintf("Nodes: %d (%d tokens), Edges: %d, Tags: %d unique", totalNodes, totalTokens, edgeCount, tagCount)
 
@@ -176,7 +178,7 @@ func executeStatus(d *db.DB) error {
 		for rows.Next() {
 			var t string
 			var c int
-			rows.Scan(&t, &c)
+			_ = rows.Scan(&t, &c)
 			status += fmt.Sprintf("\n  %s: %d", t, c)
 		}
 	}
@@ -209,7 +211,7 @@ func executeTask(d *db.DB, cmd CtxCommand) error {
 		var nodeIDs []string
 		for rows.Next() {
 			var id string
-			rows.Scan(&id)
+			_ = rows.Scan(&id)
 			nodeIDs = append(nodeIDs, id)
 		}
 
@@ -221,16 +223,16 @@ func executeTask(d *db.DB, cmd CtxCommand) error {
 			}
 			if node.Type == "decision" {
 				// Promote to reference
-				d.RemoveTag(id, "tier:working")
-				d.AddTag(id, "tier:reference")
+				_ = d.RemoveTag(id, "tier:working")
+				_ = d.AddTag(id, "tier:reference")
 			} else {
 				// Archive
-				d.RemoveTag(id, "tier:working")
-				d.AddTag(id, "tier:off-context")
+				_ = d.RemoveTag(id, "tier:working")
+				_ = d.AddTag(id, "tier:off-context")
 			}
 		}
 
-		d.DeletePending("current_task")
+		_ = d.DeletePending("current_task")
 		return nil
 
 	default:
@@ -279,6 +281,6 @@ func executeSupersede(d *db.DB, cmd CtxCommand) error {
 	}
 
 	// Create SUPERSEDES edge
-	d.CreateEdge(newID, oldID, "SUPERSEDES")
-	return nil
+	_, err = d.CreateEdge(newID, oldID, "SUPERSEDES")
+	return err
 }

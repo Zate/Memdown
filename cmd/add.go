@@ -26,7 +26,7 @@ var (
 
 func init() {
 	addCmd.Flags().StringVar(&addType, "type", "", "Node type (required)")
-	addCmd.MarkFlagRequired("type")
+	_ = addCmd.MarkFlagRequired("type")
 	addCmd.Flags().StringArrayVar(&addTags, "tag", nil, "Tags (repeatable)")
 	addCmd.Flags().StringArrayVar(&addMeta, "meta", nil, "Metadata key=value (repeatable)")
 	addCmd.Flags().BoolVar(&addStdin, "stdin", false, "Read content from stdin")

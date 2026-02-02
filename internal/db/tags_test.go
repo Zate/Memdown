@@ -47,7 +47,7 @@ func TestTagRemove(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	node, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
-	d.AddTag(node.ID, "project:test")
+	_ = d.AddTag(node.ID, "project:test")
 
 	err := d.RemoveTag(node.ID, "project:test")
 
@@ -63,9 +63,9 @@ func TestTagList_AllTags(t *testing.T) {
 	n1, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
 	n2, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "b"})
 
-	d.AddTag(n1.ID, "project:a")
-	d.AddTag(n1.ID, "tier:reference")
-	d.AddTag(n2.ID, "project:b")
+	_ = d.AddTag(n1.ID, "project:a")
+	_ = d.AddTag(n1.ID, "tier:reference")
+	_ = d.AddTag(n2.ID, "project:b")
 
 	tags, err := d.ListAllTags()
 
@@ -77,9 +77,9 @@ func TestTagList_ByPrefix(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	node, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
-	d.AddTag(node.ID, "project:a")
-	d.AddTag(node.ID, "project:b")
-	d.AddTag(node.ID, "tier:reference")
+	_ = d.AddTag(node.ID, "project:a")
+	_ = d.AddTag(node.ID, "project:b")
+	_ = d.AddTag(node.ID, "tier:reference")
 
 	tags, err := d.ListTagsByPrefix("project:")
 
@@ -91,9 +91,9 @@ func TestTagCascadeDelete(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	node, _ := d.CreateNode(db.CreateNodeInput{Type: "fact", Content: "a"})
-	d.AddTag(node.ID, "project:test")
+	_ = d.AddTag(node.ID, "project:test")
 
-	d.DeleteNode(node.ID)
+	_ = d.DeleteNode(node.ID)
 
 	tags, _ := d.ListAllTags()
 	assert.Empty(t, tags)

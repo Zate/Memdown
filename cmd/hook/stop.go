@@ -50,7 +50,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 			// Use cursor to only read new content since last prompt-submit
 			var cursor int64
 			if val, err := d.GetPending("transcript_cursor"); err == nil && val != "" {
-				fmt.Sscanf(val, "%d", &cursor)
+				_, _ = fmt.Sscanf(val, "%d", &cursor)
 			}
 
 			resp, _, err := readAssistantResponsesFromOffset(transcriptPath, cursor)
@@ -104,17 +104,17 @@ func runStop(cmd *cobra.Command, args []string) error {
 		existing, err := d.GetPending("session_store_count")
 		prev := 0
 		if err == nil && existing != "" {
-			fmt.Sscanf(existing, "%d", &prev)
+			_, _ = fmt.Sscanf(existing, "%d", &prev)
 		}
-		d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
+		_ = d.SetPending("session_store_count", fmt.Sprintf("%d", prev+successCount))
 	}
 
 	// Store last_session_stores for next session's awareness
 	storeCount, err := d.GetPending("session_store_count")
 	if err == nil && storeCount != "" {
-		d.SetPending("last_session_stores", storeCount)
+		_ = d.SetPending("last_session_stores", storeCount)
 	} else {
-		d.SetPending("last_session_stores", "0")
+		_ = d.SetPending("last_session_stores", "0")
 	}
 
 	fmt.Println("{}")

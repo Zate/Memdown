@@ -38,9 +38,9 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// Reset session counters for new session
-	d.SetPending("session_turn_count", "0")
-	d.SetPending("session_store_count", "0")
-	d.DeletePending("transcript_cursor")
+	_ = d.SetPending("session_turn_count", "0")
+	_ = d.SetPending("session_store_count", "0")
+	_ = d.DeletePending("transcript_cursor")
 
 	// Get default view query
 	var queryStr string
@@ -55,8 +55,8 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	expandJSON, err := d.GetPending("expand_nodes")
 	var expandIDs []string
 	if err == nil && expandJSON != "" {
-		json.Unmarshal([]byte(expandJSON), &expandIDs)
-		d.DeletePending("expand_nodes")
+		_ = json.Unmarshal([]byte(expandJSON), &expandIDs)
+		_ = d.DeletePending("expand_nodes")
 	}
 
 	result, err := view.Compose(d, view.ComposeOptions{

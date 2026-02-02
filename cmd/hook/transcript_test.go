@@ -172,7 +172,7 @@ func writeTranscript(t *testing.T, path string, entries []map[string]any) {
 	for _, entry := range entries {
 		data, err := json.Marshal(entry)
 		require.NoError(t, err)
-		f.Write(data)
-		f.Write([]byte("\n"))
+		_, _ = f.Write(data)
+		_, _ = f.Write([]byte("\n"))
 	}
 }

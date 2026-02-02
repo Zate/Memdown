@@ -56,7 +56,7 @@ func init() {
 		}
 	}
 	viewCreateCmd.Flags().StringVar(&viewQuery, "query", "", "Query expression")
-	viewCreateCmd.MarkFlagRequired("query")
+	_ = viewCreateCmd.MarkFlagRequired("query")
 	viewCreateCmd.Flags().IntVar(&viewBudget, "budget", defaultBudget, "Token budget")
 
 	viewRenderCmd.Flags().IntVar(&viewBudget, "budget", 0, "Override budget")
@@ -105,7 +105,7 @@ func runViewList(cmd *cobra.Command, args []string) error {
 	var views []viewInfo
 	for rows.Next() {
 		var v viewInfo
-		rows.Scan(&v.Name, &v.Query, &v.Budget)
+		_ = rows.Scan(&v.Name, &v.Query, &v.Budget)
 		views = append(views, v)
 	}
 
