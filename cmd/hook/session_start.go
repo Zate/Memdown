@@ -11,10 +11,16 @@ import (
 	"github.com/zate/ctx/internal/view"
 )
 
+var sessionStartProject string
+
 var sessionStartCmd = &cobra.Command{
 	Use:   "session-start",
 	Short: "Handle SessionStart hook",
 	RunE:  runSessionStart,
+}
+
+func init() {
+	sessionStartCmd.Flags().StringVar(&sessionStartProject, "project", "", "Current project name for scoped context loading")
 }
 
 func runSessionStart(cmd *cobra.Command, args []string) error {
@@ -42,6 +48,13 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	_ = d.SetPending("session_store_count", "0")
 	_ = d.DeletePending("transcript_cursor")
 
+	// Store current project for auto-tagging in remember commands
+	if sessionStartProject != "" {
+		_ = d.SetPending("current_project", sessionStartProject)
+	} else {
+		_ = d.DeletePending("current_project")
+	}
+
 	// Get default view query
 	var queryStr string
 	var budget int
@@ -60,8 +73,9 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	}
 
 	result, err := view.Compose(d, view.ComposeOptions{
-		Query:  queryStr,
-		Budget: budget,
+		Query:   queryStr,
+		Budget:  budget,
+		Project: sessionStartProject,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ctx: failed to compose context: %v\n", err)

@@ -106,6 +106,84 @@ func TestExecuteRemember_DifferentContentNotDeduped(t *testing.T) {
 	assert.Len(t, nodes, 2)
 }
 
+func TestExecuteRemember_AutoProjectTag(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	// Set current project in pending
+	require.NoError(t, d.SetPending("current_project", "memdown"))
+
+	cmds := []hook.CtxCommand{
+		{
+			Type:    "remember",
+			Attrs:   map[string]string{"type": "fact", "tags": "tier:reference"},
+			Content: "This should get auto-tagged with project:memdown.",
+		},
+	}
+	errs := hook.ExecuteCommandsWithErrors(d, cmds)
+	assert.Empty(t, errs)
+
+	nodes, err := d.ListNodes(db.ListOptions{Type: "fact"})
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+
+	tags, err := d.GetTags(nodes[0].ID)
+	require.NoError(t, err)
+	assert.Contains(t, tags, "tier:reference")
+	assert.Contains(t, tags, "project:memdown")
+}
+
+func TestExecuteRemember_NoAutoProjectTagWhenExplicit(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	// Set current project in pending
+	require.NoError(t, d.SetPending("current_project", "memdown"))
+
+	cmds := []hook.CtxCommand{
+		{
+			Type:    "remember",
+			Attrs:   map[string]string{"type": "fact", "tags": "tier:reference,project:other"},
+			Content: "Already has a project tag.",
+		},
+	}
+	errs := hook.ExecuteCommandsWithErrors(d, cmds)
+	assert.Empty(t, errs)
+
+	nodes, err := d.ListNodes(db.ListOptions{Type: "fact"})
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+
+	tags, err := d.GetTags(nodes[0].ID)
+	require.NoError(t, err)
+	assert.Contains(t, tags, "project:other")
+	assert.NotContains(t, tags, "project:memdown")
+}
+
+func TestExecuteRemember_NoAutoProjectTagWhenNoPending(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	// No current_project in pending
+
+	cmds := []hook.CtxCommand{
+		{
+			Type:    "remember",
+			Attrs:   map[string]string{"type": "fact", "tags": "tier:reference"},
+			Content: "No project tag should be added.",
+		},
+	}
+	errs := hook.ExecuteCommandsWithErrors(d, cmds)
+	assert.Empty(t, errs)
+
+	nodes, err := d.ListNodes(db.ListOptions{Type: "fact"})
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+
+	tags, err := d.GetTags(nodes[0].ID)
+	require.NoError(t, err)
+	for _, tag := range tags {
+		assert.False(t, len(tag) > 8 && tag[:8] == "project:", "unexpected project tag: %s", tag)
+	}
+}
+
 func TestExecuteRemember_DifferentTypeNotDeduped(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 

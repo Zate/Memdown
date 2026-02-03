@@ -20,9 +20,9 @@ func init() {
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
-	home := os.Getenv("HOME")
-	if home == "" {
-		return fmt.Errorf("HOME environment variable not set")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("could not determine home directory: %w", err)
 	}
 
 	ctxDir := filepath.Join(home, ".ctx")

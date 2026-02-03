@@ -86,6 +86,21 @@ func executeRemember(d *db.DB, cmd CtxCommand) error {
 		}
 	}
 
+	// Auto-add project tag from current session
+	currentProject, projErr := d.GetPending("current_project")
+	if projErr == nil && currentProject != "" {
+		hasProjectTag := false
+		for _, t := range tags {
+			if strings.HasPrefix(t, "project:") {
+				hasProjectTag = true
+				break
+			}
+		}
+		if !hasProjectTag {
+			tags = append(tags, "project:"+currentProject)
+		}
+	}
+
 	// Check for existing node with same type and content to avoid duplicates
 	existing, err := d.FindByTypeAndContent(nodeType, content)
 	if err != nil {

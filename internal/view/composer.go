@@ -11,8 +11,9 @@ import (
 )
 
 type ComposeOptions struct {
-	Query  string
-	Budget int
+	Query   string
+	Budget  int
+	Project string // If set, filter out nodes scoped to other projects
 }
 
 type ComposeResult struct {
@@ -46,6 +47,17 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 		return nodes[i].CreatedAt.After(nodes[j].CreatedAt)
 	})
 
+	// Filter by project scope
+	if opts.Project != "" {
+		var filtered []*db.Node
+		for _, n := range nodes {
+			if shouldIncludeForProject(n, opts.Project) {
+				filtered = append(filtered, n)
+			}
+		}
+		nodes = filtered
+	}
+
 	// Apply budget
 	result := &ComposeResult{
 		RenderedAt:        time.Now().UTC(),
@@ -66,6 +78,31 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 	}
 
 	return result, nil
+}
+
+// shouldIncludeForProject returns true if a node should be included given the current project.
+// A node is project-scoped if it has any tag matching "project:*" (excluding "project:global").
+// If project-scoped, it only loads if one of its project tags matches the current project.
+// Nodes with no project tags or tagged "project:global" load everywhere.
+func shouldIncludeForProject(node *db.Node, currentProject string) bool {
+	hasProjectTag := false
+	matchesCurrent := false
+	for _, tag := range node.Tags {
+		if tag == "project:global" {
+			return true
+		}
+		if strings.HasPrefix(tag, "project:") {
+			hasProjectTag = true
+			project := strings.TrimPrefix(tag, "project:")
+			if strings.EqualFold(project, currentProject) {
+				matchesCurrent = true
+			}
+		}
+	}
+	if !hasProjectTag {
+		return true
+	}
+	return matchesCurrent
 }
 
 func tierPriority(tags []string) int {

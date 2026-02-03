@@ -22,7 +22,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	defaultDB := filepath.Join(os.Getenv("HOME"), ".ctx", "store.db")
+	home, _ := os.UserHomeDir()
+	defaultDB := filepath.Join(home, ".ctx", "store.db")
 	if envDB := os.Getenv("CTX_DB"); envDB != "" {
 		defaultDB = envDB
 	}

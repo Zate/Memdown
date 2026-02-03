@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -27,9 +28,9 @@ func init() {
 
 func runInstall(cmd *cobra.Command, args []string) error {
 	if installMCP {
-		home := os.Getenv("HOME")
-		if home == "" {
-			return fmt.Errorf("HOME environment variable not set")
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("could not determine home directory: %w", err)
 		}
 		return printMCPConfig(home)
 	}
@@ -82,9 +83,13 @@ func printMCPConfig(home string) error {
 
 // findCtxBinary returns the path to the ctx binary, preferring PATH lookup.
 func findCtxBinary() (string, error) {
+	name := "ctx"
+	if runtime.GOOS == "windows" {
+		name = "ctx.exe"
+	}
 	// Check if ctx is in PATH
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
-		candidate := filepath.Join(dir, "ctx")
+		candidate := filepath.Join(dir, name)
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
