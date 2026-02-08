@@ -11,9 +11,10 @@ import (
 )
 
 type ComposeOptions struct {
-	Query   string
-	Budget  int
-	Project string // If set, filter out nodes scoped to other projects
+	Query                string
+	Budget               int
+	Project              string // If set, filter out nodes scoped to other projects
+	IncludeReferenceStats bool  // If true, count available tier:reference nodes
 }
 
 type ComposeResult struct {
@@ -21,7 +22,9 @@ type ComposeResult struct {
 	TotalTokens       int
 	NodeCount         int
 	RenderedAt        time.Time
-	LastSessionStores int  // -1 means unknown/not set
+	LastSessionStores int            // -1 means unknown/not set
+	ReferenceCount    int            // Number of available tier:reference nodes
+	ReferenceByType   map[string]int // Breakdown by node type
 }
 
 func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
@@ -75,6 +78,28 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 		result.Nodes = append(result.Nodes, n)
 		result.TotalTokens += n.TokenEstimate
 		result.NodeCount++
+	}
+
+	// Count available reference nodes if requested
+	if opts.IncludeReferenceStats {
+		refNodes, err := query.ExecuteQuery(d, "tag:tier:reference", false)
+		if err == nil {
+			// Apply same project filtering
+			if opts.Project != "" {
+				var filtered []*db.Node
+				for _, n := range refNodes {
+					if shouldIncludeForProject(n, opts.Project) {
+						filtered = append(filtered, n)
+					}
+				}
+				refNodes = filtered
+			}
+			result.ReferenceCount = len(refNodes)
+			result.ReferenceByType = make(map[string]int)
+			for _, n := range refNodes {
+				result.ReferenceByType[n.Type]++
+			}
+		}
 	}
 
 	return result, nil
@@ -132,17 +157,38 @@ func RenderMarkdown(result *ComposeResult) string {
 	header += " -->\n\n"
 	b.WriteString(header)
 
-	// Always include usage primer with WHEN to store (not just HOW)
+	// Usage primer with tier guidance and type→tier mapping
 	b.WriteString("You have persistent memory via `ctx`. Commands are processed after you respond.\n\n")
 	b.WriteString("**Store knowledge when:**\n")
-	b.WriteString("- You make or learn a **decision** → `<ctx:remember type=\"decision\" tags=\"tier:reference\">...</ctx:remember>`\n")
-	b.WriteString("- You discover a **preference** or convention → `type=\"fact\"`\n")
-	b.WriteString("- You see a recurring **pattern** → `type=\"pattern\"`\n")
-	b.WriteString("- Debugging reveals a **root cause** → `type=\"observation\"`\n")
-	b.WriteString("- An idea worth revisiting → `type=\"hypothesis\"`\n")
-	b.WriteString("- A question can't be answered now → `type=\"open-question\"`\n\n")
+	b.WriteString("- You make or learn a **decision** → `<ctx:remember type=\"decision\" tags=\"tier:pinned\">...</ctx:remember>`\n")
+	b.WriteString("- You discover a **preference** or convention → `type=\"fact\"`, `tier:pinned`\n")
+	b.WriteString("- You see a recurring **pattern** → `type=\"pattern\"`, `tier:pinned`\n")
+	b.WriteString("- Debugging reveals a **root cause** → `type=\"observation\"`, `tier:working`\n")
+	b.WriteString("- An idea worth revisiting → `type=\"hypothesis\"`, `tier:working`\n")
+	b.WriteString("- A question can't be answered now → `type=\"open-question\"`, `tier:working`\n")
+	b.WriteString("- Durable but not critical knowledge → `tier:reference` (accessed via recall)\n\n")
+	b.WriteString("**Key question:** Every session? → `tier:pinned`. Someday? → `tier:reference`. This task? → `tier:working`.\n\n")
 	b.WriteString("**Other commands:** `<ctx:recall query=\"...\"/>`, `<ctx:status/>`, `<ctx:task name=\"X\" action=\"start|end\"/>`\n")
 	b.WriteString("Always include a `tier:` tag. Invoke the `ctx` skill for full reference.\n\n")
+
+	// Show reference availability if stats are present
+	if result.ReferenceCount > 0 {
+		fmt.Fprintf(&b, "**Reference available:** %d nodes not auto-loaded (use `<ctx:recall>` to access)", result.ReferenceCount)
+		if len(result.ReferenceByType) > 0 {
+			var parts []string
+			// Sort types for consistent output
+			typeNames := make([]string, 0, len(result.ReferenceByType))
+			for t := range result.ReferenceByType {
+				typeNames = append(typeNames, t)
+			}
+			sort.Strings(typeNames)
+			for _, t := range typeNames {
+				parts = append(parts, fmt.Sprintf("%d %ss", result.ReferenceByType[t], t))
+			}
+			fmt.Fprintf(&b, " — %s", strings.Join(parts, ", "))
+		}
+		b.WriteString("\n\n")
+	}
 
 	// Group by tier then type
 	groups := map[string][]*db.Node{

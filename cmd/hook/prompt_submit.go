@@ -157,7 +157,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 			storeCount, _ = strconv.Atoi(val)
 		}
 		if storeCount == 0 {
-			contextParts = append(contextParts, "<!-- ctx: No knowledge stored this session. Consider persisting decisions, patterns, or facts before the session ends. -->")
+			contextParts = append(contextParts, "<!-- ctx: No knowledge stored this session. Consider:\n- Constraints/preferences → type=fact, tier:pinned\n- Foundational decisions → type=decision, tier:pinned\n- Active conventions → type=pattern, tier:pinned\n- Task-scoped work → tier:working\n- Durable but not critical → tier:reference (accessed via recall) -->")
 		}
 	}
 

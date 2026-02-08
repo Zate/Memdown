@@ -117,3 +117,98 @@ func nodeContents(nodes []*db.Node) []string {
 	}
 	return contents
 }
+
+func TestCompose_DefaultQuery_ExcludesReference(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	createNode(t, d, "fact", "pinned fact", []string{"tier:pinned"})
+	createNode(t, d, "decision", "reference decision", []string{"tier:reference"})
+	createNode(t, d, "observation", "working observation", []string{"tier:working"})
+
+	// Use the new default query (pinned OR working, no reference)
+	result, err := view.Compose(d, view.ComposeOptions{
+		Query:  "tag:tier:pinned OR tag:tier:working",
+		Budget: 50000,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, result.NodeCount)
+	contents := nodeContents(result.Nodes)
+	assert.Contains(t, contents, "pinned fact")
+	assert.Contains(t, contents, "working observation")
+	assert.NotContains(t, contents, "reference decision")
+}
+
+func TestCompose_ReferenceStats_CountsByType(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	createNode(t, d, "decision", "ref decision 1", []string{"tier:reference"})
+	createNode(t, d, "decision", "ref decision 2", []string{"tier:reference"})
+	createNode(t, d, "fact", "ref fact 1", []string{"tier:reference"})
+	createNode(t, d, "pattern", "ref pattern 1", []string{"tier:reference"})
+	createNode(t, d, "fact", "pinned fact", []string{"tier:pinned"})
+
+	result, err := view.Compose(d, view.ComposeOptions{
+		Query:                 "tag:tier:pinned OR tag:tier:working",
+		Budget:                50000,
+		IncludeReferenceStats: true,
+	})
+	require.NoError(t, err)
+
+	// Only pinned loaded
+	assert.Equal(t, 1, result.NodeCount)
+	assert.Equal(t, "pinned fact", result.Nodes[0].Content)
+
+	// Reference stats counted
+	assert.Equal(t, 4, result.ReferenceCount)
+	assert.Equal(t, 2, result.ReferenceByType["decision"])
+	assert.Equal(t, 1, result.ReferenceByType["fact"])
+	assert.Equal(t, 1, result.ReferenceByType["pattern"])
+}
+
+func TestCompose_ReferenceStats_RespectsProjectScope(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	createNode(t, d, "decision", "project-a ref", []string{"tier:reference", "project:alpha"})
+	createNode(t, d, "decision", "project-b ref", []string{"tier:reference", "project:beta"})
+	createNode(t, d, "fact", "global ref", []string{"tier:reference", "project:global"})
+	createNode(t, d, "fact", "unscoped ref", []string{"tier:reference"})
+
+	result, err := view.Compose(d, view.ComposeOptions{
+		Query:                 "tag:tier:pinned OR tag:tier:working",
+		Budget:                50000,
+		Project:               "alpha",
+		IncludeReferenceStats: true,
+	})
+	require.NoError(t, err)
+
+	// Should count alpha + global + unscoped, exclude beta
+	assert.Equal(t, 3, result.ReferenceCount)
+	assert.Equal(t, 1, result.ReferenceByType["decision"])
+	assert.Equal(t, 2, result.ReferenceByType["fact"])
+}
+
+func TestRenderMarkdown_ShowsReferenceAvailability(t *testing.T) {
+	result := &view.ComposeResult{
+		NodeCount:       1,
+		TotalTokens:     100,
+		ReferenceCount:  5,
+		ReferenceByType: map[string]int{"decision": 3, "fact": 2},
+	}
+
+	output := view.RenderMarkdown(result)
+	assert.Contains(t, output, "**Reference available:** 5 nodes not auto-loaded")
+	assert.Contains(t, output, "3 decisions")
+	assert.Contains(t, output, "2 facts")
+}
+
+func TestRenderMarkdown_HidesReferenceWhenZero(t *testing.T) {
+	result := &view.ComposeResult{
+		NodeCount:      1,
+		TotalTokens:    100,
+		ReferenceCount: 0,
+	}
+
+	output := view.RenderMarkdown(result)
+	assert.NotContains(t, output, "Reference available")
+}

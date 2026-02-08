@@ -44,7 +44,7 @@ Six tables: `nodes`, `edges`, `tags`, `views`, `pending`, `schema_version`. Plus
 
 **Node types:** `fact`, `decision`, `pattern`, `observation`, `hypothesis`, `task`, `summary`, `source`, `open-question`
 
-**Tier tags** control what gets composed into context: `tier:pinned` (always), `tier:reference` (default), `tier:working` (current task), `tier:off-context` (archived).
+**Tier tags** control what gets composed into context: `tier:pinned` (always loaded), `tier:reference` (on-demand via recall), `tier:working` (current task), `tier:off-context` (archived).
 
 ## Key Subsystems
 
@@ -58,10 +58,10 @@ Executes parsed commands against the database. Handles: `remember`, `recall`, `s
 Custom query parser supporting predicates (`type:fact`, `tag:project:X`), boolean operators (`AND`, `OR`, `NOT`), grouping with parentheses, and comparison operators (`created:>2025-01-01`, `tokens:<1000`). Has fuzz tests.
 
 ### Context Composer (`internal/view/composer.go`)
-Selects nodes matching a query, sorts by tier priority then recency, applies a token budget, and renders as markdown for injection. The default view query is `tag:tier:pinned OR tag:tier:reference OR tag:tier:working` with a 50,000-token budget.
+Selects nodes matching a query, sorts by tier priority then recency, applies a token budget, and renders as markdown for injection. The default view query is `tag:tier:pinned OR tag:tier:working` with a 50,000-token budget. Reference nodes are not auto-loaded but their availability is reported in the session-start output.
 
 ### Installer (`cmd/install.go`)
-`ctx install` handles everything: binary installation (scans PATH for writable dirs), database creation, skill file installation, hook configuration in `~/.claude/settings.json`, and CLAUDE.md section injection. Supports `--dry-run` and `--force`.
+`ctx install` is deprecated in favor of the plugin-based installation. `ctx init` handles database creation only. The plugin (`cc-plugins/plugins/ctx/`) handles binary auto-download, hook registration, and skill injection.
 
 ## Working on This Project
 

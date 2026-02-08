@@ -158,6 +158,13 @@ var migrations = []struct {
 			INSERT INTO nodes_fts(rowid, content) VALUES (NEW.rowid, NEW.content);
 		END`,
 	}},
+	{2, []string{
+		// Update default view to exclude tier:reference from auto-loading
+		`UPDATE views SET query = 'tag:tier:pinned OR tag:tier:working',
+			updated_at = datetime('now')
+			WHERE name = 'default'
+			AND query = 'tag:tier:pinned OR tag:tier:reference OR tag:tier:working'`,
+	}},
 }
 
 func (d *DB) migrate() error {
@@ -199,7 +206,7 @@ func (d *DB) migrate() error {
 
 	// Create default view if not exists
 	_, err = d.db.Exec(`INSERT OR IGNORE INTO views (name, query, budget, created_at, updated_at)
-		VALUES ('default', 'tag:tier:pinned OR tag:tier:reference OR tag:tier:working', 50000, ?, ?)`,
+		VALUES ('default', 'tag:tier:pinned OR tag:tier:working', 50000, ?, ?)`,
 		time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("failed to create default view: %w", err)

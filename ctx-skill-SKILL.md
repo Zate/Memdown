@@ -46,12 +46,27 @@ A node is a piece of knowledge. Every node has:
 
 Tiers control what gets loaded into your context:
 
-| Tier | Behavior | Use For |
-|------|----------|---------|
-| `tier:pinned` | Always loaded | Critical facts, active constraints |
-| `tier:reference` | Loaded by default | Stable background knowledge |
-| `tier:working` | Loaded for current task | Active task context |
-| `tier:off-context` | Stored, not loaded | Archived work, source material |
+| Tier | Auto-Loaded? | Use For | Examples |
+|------|-------------|---------|----------|
+| `tier:pinned` | Yes | Critical facts, foundational decisions, active conventions | "Always test code", "Uses Three.js + vanilla TS" |
+| `tier:reference` | No (use recall) | Durable knowledge, past decisions, resolved issues | "Chose PostgreSQL for multi-tenant" |
+| `tier:working` | Yes | Current task context, debugging, scratch | "Token refresh fails on expired tokens" |
+| `tier:off-context` | No | Archived, rarely needed | Completed task logs, old debugging |
+
+**Key question:** Will I need this EVERY session? → `pinned`. Might I need it someday? → `reference`. Only for this task? → `working`.
+
+### Type → Tier Quick Guide
+
+| When you hear/think... | Type | Tier |
+|------------------------|------|------|
+| "Please remember: always test our code" | `fact` | `pinned` |
+| "We're using Three.js with vanilla TS" | `decision` | `pinned` |
+| "This codebase uses InstancedMesh for geometry" | `pattern` | `pinned` |
+| "We chose PostgreSQL for multi-tenant" | `decision` | `reference` |
+| "The 404 was caused by missing PBR textures" (resolved) | `observation` | `reference` |
+| "Debugging: token refresh fails on expired tokens" (in-progress) | `observation` | `working` |
+| "Maybe the race is in cache invalidation" | `hypothesis` | `working` |
+| "Splat map overhaul fully implemented" | `decision` | `working` |
 
 ### Edges
 
@@ -70,11 +85,22 @@ Issue commands using XML tags in your responses. They are processed after you re
 
 ### Remember
 
-Store knowledge:
+Store knowledge (always include a `tier:` tag):
 
 ```xml
-<ctx:remember type="fact" tags="project:myproject,tier:reference">
-The API uses OAuth 2.0 with PKCE for public clients.
+<!-- Pinned: critical, needed every session -->
+<ctx:remember type="fact" tags="project:myproject,tier:pinned">
+Always run tests before committing. User preference.
+</ctx:remember>
+
+<!-- Working: task-scoped, temporary -->
+<ctx:remember type="observation" tags="project:myproject,tier:working">
+Auth bug seems related to token refresh timing.
+</ctx:remember>
+
+<!-- Reference: durable but not needed every session -->
+<ctx:remember type="decision" tags="project:myproject,tier:reference">
+Chose PostgreSQL for multi-tenant concurrent write access.
 </ctx:remember>
 ```
 
@@ -173,37 +199,43 @@ Ending a task:
 
 ### When to Remember
 
-**Do remember:**
-- Decisions and their rationale
-- User preferences and constraints
-- Project-specific patterns
-- Key conclusions from exploration
-- Open questions to revisit
+**Pinned (needed every session):**
+- User preferences and constraints → `type=fact, tier:pinned`
+- Foundational project decisions → `type=decision, tier:pinned`
+- Active conventions and patterns → `type=pattern, tier:pinned`
+
+**Working (current task only):**
+- In-progress debugging context → `type=observation, tier:working`
+- Unvalidated ideas → `type=hypothesis, tier:working`
+- Unresolved questions → `type=open-question, tier:working`
+
+**Reference (durable, access via recall):**
+- Past decisions worth preserving → `type=decision, tier:reference`
+- Resolved issues and root causes → `type=observation, tier:reference`
+- Background knowledge → `type=fact, tier:reference`
 
 **Don't remember:**
 - Transient debugging output
 - Routine confirmations
 - Things already in reference material
-- Highly context-dependent observations
 
-### Crystallizing Decisions
+### Starting a Task
 
-When you and the user decide something, capture it:
+At the start of a task, recall relevant reference knowledge:
 
 ```xml
-<ctx:remember type="decision" tags="project:X,tier:reference">
-Using PostgreSQL instead of SQLite.
-Rationale: Multi-tenant requirement needs concurrent write access.
-Trade-off: Adds deployment dependency but necessary for scale.
-</ctx:remember>
+<ctx:recall query="type:decision AND tag:project:myproject"/>
 ```
+
+This brings in past decisions without them cluttering every session.
 
 ### Task Workflow
 
 1. Start task: `<ctx:task name="feature-X" action="start"/>`
-2. Add observations as you work with `tier:working`
-3. Make decisions, tag with `tier:reference`
-4. End task: `<ctx:task name="feature-X" action="end" summarize="true"/>`
+2. Recall relevant reference: `<ctx:recall query="tag:project:X"/>`
+3. Add observations as you work with `tier:working`
+4. Promote key decisions to `tier:pinned` (if needed every session) or `tier:reference` (if durable)
+5. End task: `<ctx:task name="feature-X" action="end" summarize="true"/>`
 
 ### Managing Budget
 
@@ -224,11 +256,12 @@ When you summarize, sources are linked. Later you can:
 ## What's Loaded Now
 
 Your current context was composed from:
-- All `tier:pinned` nodes
-- All `tier:reference` nodes  
-- All `tier:working` nodes for the active task
+- All `tier:pinned` nodes — always loaded
+- All `tier:working` nodes — current task context
 
-Nodes tagged `tier:off-context` are stored but not loaded. Use `<ctx:recall>` to query them.
+**Not auto-loaded (use `<ctx:recall>` to access):**
+- `tier:reference` nodes — durable knowledge, available on demand
+- `tier:off-context` nodes — archived, rarely needed
 
 ## Tips
 

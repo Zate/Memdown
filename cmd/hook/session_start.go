@@ -60,7 +60,7 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	var budget int
 	err = d.QueryRow("SELECT query, budget FROM views WHERE name = 'default'").Scan(&queryStr, &budget)
 	if err != nil {
-		queryStr = "tag:tier:pinned OR tag:tier:reference OR tag:tier:working"
+		queryStr = "tag:tier:pinned OR tag:tier:working"
 		budget = 50000
 	}
 
@@ -73,9 +73,10 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	}
 
 	result, err := view.Compose(d, view.ComposeOptions{
-		Query:   queryStr,
-		Budget:  budget,
-		Project: sessionStartProject,
+		Query:                 queryStr,
+		Budget:                budget,
+		Project:               sessionStartProject,
+		IncludeReferenceStats: true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ctx: failed to compose context: %v\n", err)

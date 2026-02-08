@@ -22,7 +22,7 @@ $(PLATFORMS):
 	$(eval GOARCH := $(word 2,$(subst /, ,$@)))
 	$(eval EXT := $(if $(filter windows,$(GOOS)),.exe,))
 	@mkdir -p $(DIST_DIR)/$(GOOS)-$(GOARCH)
-	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -o $(DIST_DIR)/$(GOOS)-$(GOARCH)/$(BINARY_NAME)$(EXT) .
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(GOOS)-$(GOARCH)/$(BINARY_NAME)$(EXT) .
 	@echo "Built $(DIST_DIR)/$(GOOS)-$(GOARCH)/$(BINARY_NAME)$(EXT)"
 
 # Build and install (binary, database, skill, hooks, CLAUDE.md)
