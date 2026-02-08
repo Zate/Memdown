@@ -24,10 +24,15 @@ func runUntag(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	if err := d.RemoveTag(args[0], args[1]); err != nil {
+	id, err := resolveArg(d, args[0])
+	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Untagged: %s from %s\n", args[1], args[0][:8])
+	if err := d.RemoveTag(id, args[1]); err != nil {
+		return err
+	}
+
+	fmt.Printf("Untagged: %s from %s\n", args[1], id[:8])
 	return nil
 }

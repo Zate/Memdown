@@ -43,3 +43,12 @@ func openDB() (*db.DB, error) {
 	}
 	return d, nil
 }
+
+// resolveArg resolves a node ID prefix to a full ID using the database.
+func resolveArg(d *db.DB, prefix string) (string, error) {
+	resolved, err := d.ResolveID(prefix)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve ID %q: %w", prefix, err)
+	}
+	return resolved, nil
+}

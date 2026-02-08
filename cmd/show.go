@@ -28,7 +28,12 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	node, err := d.GetNode(args[0])
+	id, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+
+	node, err := d.GetNode(id)
 	if err != nil {
 		return err
 	}

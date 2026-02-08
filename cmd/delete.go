@@ -24,10 +24,15 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	if err := d.DeleteNode(args[0]); err != nil {
+	id, err := resolveArg(d, args[0])
+	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Deleted: %s\n", args[0])
+	if err := d.DeleteNode(id); err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted: %s\n", id)
 	return nil
 }

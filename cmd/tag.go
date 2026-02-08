@@ -24,7 +24,10 @@ func runTag(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	nodeID := args[0]
+	nodeID, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
 	for _, tag := range args[1:] {
 		if err := d.AddTag(nodeID, tag); err != nil {
 			return fmt.Errorf("failed to add tag %s: %w", tag, err)

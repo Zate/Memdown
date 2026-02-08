@@ -28,7 +28,12 @@ func runRelated(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	visited := map[string]bool{args[0]: true}
+	id, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+
+	visited := map[string]bool{id: true}
 	type relatedNode struct {
 		ID      string `json:"id"`
 		Type    string `json:"type"`
@@ -37,7 +42,7 @@ func runRelated(cmd *cobra.Command, args []string) error {
 	}
 	var results []relatedNode
 
-	current := []string{args[0]}
+	current := []string{id}
 	for depth := 0; depth < relatedDepth; depth++ {
 		var next []string
 		for _, id := range current {

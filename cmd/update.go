@@ -46,7 +46,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		input.Metadata = &updateMeta
 	}
 
-	node, err := d.UpdateNode(args[0], input)
+	id, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+
+	node, err := d.UpdateNode(id, input)
 	if err != nil {
 		return err
 	}

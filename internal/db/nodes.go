@@ -139,6 +139,51 @@ func (d *DB) FindByTypeAndContent(nodeType, content string) (*Node, error) {
 	return d.GetNode(id)
 }
 
+// ResolveID resolves a node ID prefix to a full ID.
+// If the input is already a full ULID (26 chars), it's returned as-is after validation.
+// For shorter prefixes, it finds the unique matching node.
+// Returns ErrNotFound if no match, or an error if multiple nodes match the prefix.
+func (d *DB) ResolveID(prefix string) (string, error) {
+	if len(prefix) == 26 {
+		var id string
+		err := d.db.QueryRow("SELECT id FROM nodes WHERE id = ?", prefix).Scan(&id)
+		if err == sql.ErrNoRows {
+			return "", ErrNotFound
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve ID: %w", err)
+		}
+		return id, nil
+	}
+	if len(prefix) == 0 {
+		return "", fmt.Errorf("empty ID prefix")
+	}
+
+	rows, err := d.db.Query("SELECT id FROM nodes WHERE id LIKE ? LIMIT 2", prefix+"%")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve ID prefix: %w", err)
+	}
+	defer rows.Close()
+
+	var matches []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return "", fmt.Errorf("failed to scan ID: %w", err)
+		}
+		matches = append(matches, id)
+	}
+
+	switch len(matches) {
+	case 0:
+		return "", ErrNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("ambiguous ID prefix %q: matches %s and %s", prefix, matches[0], matches[1])
+	}
+}
+
 func (d *DB) GetNode(id string) (*Node, error) {
 	node := &Node{}
 	var summary, supersededBy sql.NullString

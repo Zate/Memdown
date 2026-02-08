@@ -28,7 +28,16 @@ func runLink(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	edge, err := d.CreateEdge(args[0], args[1], linkType)
+	fromID, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+	toID, err := resolveArg(d, args[1])
+	if err != nil {
+		return err
+	}
+
+	edge, err := d.CreateEdge(fromID, toID, linkType)
 	if err != nil {
 		return err
 	}
@@ -38,7 +47,7 @@ func runLink(cmd *cobra.Command, args []string) error {
 		data, _ := json.MarshalIndent(edge, "", "  ")
 		fmt.Println(string(data))
 	default:
-		fmt.Printf("Linked: %s → %s (%s)\n", args[0][:8], args[1][:8], linkType)
+		fmt.Printf("Linked: %s → %s (%s)\n", fromID[:8], toID[:8], linkType)
 	}
 
 	return nil

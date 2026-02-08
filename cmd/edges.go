@@ -28,7 +28,12 @@ func runEdges(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	edges, err := d.GetEdges(args[0], edgesDirection)
+	id, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+
+	edges, err := d.GetEdges(id, edgesDirection)
 	if err != nil {
 		return err
 	}
@@ -43,7 +48,7 @@ func runEdges(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 		for _, e := range edges {
-			if e.FromID == args[0] {
+			if e.FromID == id {
 				fmt.Printf("→ %s (%s)\n", e.ToID[:8], e.Type)
 			} else {
 				fmt.Printf("← %s (%s)\n", e.FromID[:8], e.Type)

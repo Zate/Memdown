@@ -149,6 +149,15 @@ func executeSummarize(d *db.DB, cmd CtxCommand) error {
 		nodeIDs[i] = strings.TrimSpace(nodeIDs[i])
 	}
 
+	// Resolve short ID prefixes
+	for i, id := range nodeIDs {
+		resolved, err := d.ResolveID(id)
+		if err != nil {
+			return fmt.Errorf("summarize: failed to resolve node ID %q: %w", id, err)
+		}
+		nodeIDs[i] = resolved
+	}
+
 	archive := cmd.Attrs["archive"] == "true"
 
 	summary, err := d.CreateNode(db.CreateNodeInput{
@@ -185,7 +194,17 @@ func executeLink(d *db.DB, cmd CtxCommand) error {
 		edgeType = "RELATES_TO"
 	}
 
-	_, err := d.CreateEdge(fromID, toID, edgeType)
+	// Resolve short ID prefixes
+	resolvedFrom, err := d.ResolveID(fromID)
+	if err != nil {
+		return fmt.Errorf("link: failed to resolve from ID %q: %w", fromID, err)
+	}
+	resolvedTo, err := d.ResolveID(toID)
+	if err != nil {
+		return fmt.Errorf("link: failed to resolve to ID %q: %w", toID, err)
+	}
+
+	_, err = d.CreateEdge(resolvedFrom, resolvedTo, edgeType)
 	return err
 }
 
@@ -274,6 +293,13 @@ func executeExpand(d *db.DB, cmd CtxCommand) error {
 		return fmt.Errorf("expand: node attribute is required")
 	}
 
+	// Resolve short ID prefix
+	resolvedID, err := d.ResolveID(nodeID)
+	if err != nil {
+		return fmt.Errorf("expand: failed to resolve node ID %q: %w", nodeID, err)
+	}
+	nodeID = resolvedID
+
 	// Get DERIVED_FROM edges
 	edges, err := d.GetEdgesFrom(nodeID)
 	if err != nil {
@@ -302,8 +328,20 @@ func executeSupersede(d *db.DB, cmd CtxCommand) error {
 		return fmt.Errorf("supersede: old and new attributes are required")
 	}
 
+	// Resolve short ID prefixes
+	resolvedOld, err := d.ResolveID(oldID)
+	if err != nil {
+		return fmt.Errorf("supersede: failed to resolve old ID %q: %w", oldID, err)
+	}
+	resolvedNew, err := d.ResolveID(newID)
+	if err != nil {
+		return fmt.Errorf("supersede: failed to resolve new ID %q: %w", newID, err)
+	}
+	oldID = resolvedOld
+	newID = resolvedNew
+
 	// Mark old as superseded
-	_, err := d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", newID, oldID)
+	_, err = d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", newID, oldID)
 	if err != nil {
 		return err
 	}

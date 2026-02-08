@@ -28,6 +28,11 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
+	id, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+
 	visited := map[string]bool{}
 	type traceNode struct {
 		ID      string `json:"id"`
@@ -80,7 +85,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := walk(args[0], 0); err != nil {
+	if err := walk(id, 0); err != nil {
 		return err
 	}
 

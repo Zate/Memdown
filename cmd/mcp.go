@@ -427,9 +427,13 @@ func handleShow(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 	}
 	defer d.Close()
 
-	id, err := req.RequireString("id")
+	idArg, err := req.RequireString("id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := d.ResolveID(idArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve ID %q: %v", idArg, err)), nil
 	}
 
 	node, err := d.GetNode(id)
@@ -542,13 +546,22 @@ func handleLink(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 	}
 	defer d.Close()
 
-	fromID, err := req.RequireString("from")
+	fromArg, err := req.RequireString("from")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	toID, err := req.RequireString("to")
+	toArg, err := req.RequireString("to")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	fromID, err := d.ResolveID(fromArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve from ID %q: %v", fromArg, err)), nil
+	}
+	toID, err := d.ResolveID(toArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve to ID %q: %v", toArg, err)), nil
 	}
 
 	edgeType := req.GetString("type", "RELATES_TO")
@@ -568,13 +581,22 @@ func handleUnlink(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 	}
 	defer d.Close()
 
-	fromID, err := req.RequireString("from")
+	fromArg, err := req.RequireString("from")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	toID, err := req.RequireString("to")
+	toArg, err := req.RequireString("to")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	fromID, err := d.ResolveID(fromArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve from ID %q: %v", fromArg, err)), nil
+	}
+	toID, err := d.ResolveID(toArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve to ID %q: %v", toArg, err)), nil
 	}
 
 	edgeType := req.GetString("type", "")
@@ -593,9 +615,13 @@ func handleTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResul
 	}
 	defer d.Close()
 
-	id, err := req.RequireString("id")
+	idArg, err := req.RequireString("id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := d.ResolveID(idArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve ID %q: %v", idArg, err)), nil
 	}
 	tagsStr, err := req.RequireString("tags")
 	if err != nil {
@@ -619,9 +645,13 @@ func handleUntag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 	}
 	defer d.Close()
 
-	id, err := req.RequireString("id")
+	idArg, err := req.RequireString("id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := d.ResolveID(idArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve ID %q: %v", idArg, err)), nil
 	}
 	tagsStr, err := req.RequireString("tags")
 	if err != nil {
@@ -685,6 +715,15 @@ func handleSummarize(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 	archive := req.GetBool("archive", false)
 	sourceIDs := splitAndTrim(nodesStr)
 
+	// Resolve short ID prefixes
+	for i, sid := range sourceIDs {
+		resolved, resolveErr := d.ResolveID(sid)
+		if resolveErr != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("cannot resolve node ID %q: %v", sid, resolveErr)), nil
+		}
+		sourceIDs[i] = resolved
+	}
+
 	summary, err := d.CreateNode(db.CreateNodeInput{
 		Type:    "summary",
 		Content: content,
@@ -719,13 +758,22 @@ func handleSupersede(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 	}
 	defer d.Close()
 
-	oldID, err := req.RequireString("old")
+	oldArg, err := req.RequireString("old")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	newID, err := req.RequireString("new")
+	newArg, err := req.RequireString("new")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	oldID, err := d.ResolveID(oldArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve old ID %q: %v", oldArg, err)), nil
+	}
+	newID, err := d.ResolveID(newArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve new ID %q: %v", newArg, err)), nil
 	}
 
 	_, execErr := d.Exec("UPDATE nodes SET superseded_by = ? WHERE id = ?", newID, oldID)
@@ -794,9 +842,13 @@ func handleRelated(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 	}
 	defer d.Close()
 
-	id, err := req.RequireString("id")
+	idArg, err := req.RequireString("id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := d.ResolveID(idArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve ID %q: %v", idArg, err)), nil
 	}
 	depth := req.GetInt("depth", 1)
 
@@ -855,9 +907,13 @@ func handleTrace(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRes
 	}
 	defer d.Close()
 
-	id, err := req.RequireString("id")
+	idArg, err := req.RequireString("id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id, err := d.ResolveID(idArg)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("cannot resolve ID %q: %v", idArg, err)), nil
 	}
 	reverse := req.GetBool("reverse", false)
 

@@ -27,10 +27,19 @@ func runUnlink(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	if err := d.DeleteEdge(args[0], args[1], unlinkType); err != nil {
+	fromID, err := resolveArg(d, args[0])
+	if err != nil {
+		return err
+	}
+	toID, err := resolveArg(d, args[1])
+	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Unlinked: %s → %s\n", args[0][:8], args[1][:8])
+	if err := d.DeleteEdge(fromID, toID, unlinkType); err != nil {
+		return err
+	}
+
+	fmt.Printf("Unlinked: %s → %s\n", fromID[:8], toID[:8])
 	return nil
 }

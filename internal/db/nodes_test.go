@@ -227,6 +227,57 @@ func TestNodeList_ExcludesSuperseded(t *testing.T) {
 	assert.Equal(t, n2.ID, nodes[0].ID)
 }
 
+func TestResolveID_FullID(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	node, err := d.CreateNode(db.CreateNodeInput{
+		Type:    "fact",
+		Content: "test content",
+	})
+	require.NoError(t, err)
+
+	resolved, err := d.ResolveID(node.ID)
+	require.NoError(t, err)
+	assert.Equal(t, node.ID, resolved)
+}
+
+func TestResolveID_FullID_NotFound(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	_, err := d.ResolveID("01AAAAAAAABBBBBBBBCCCCCCCC")
+	assert.True(t, errors.Is(err, db.ErrNotFound))
+}
+
+func TestResolveID_Prefix(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	node, err := d.CreateNode(db.CreateNodeInput{
+		Type:    "fact",
+		Content: "test content",
+	})
+	require.NoError(t, err)
+
+	// Use first 8 chars as prefix
+	prefix := node.ID[:8]
+	resolved, err := d.ResolveID(prefix)
+	require.NoError(t, err)
+	assert.Equal(t, node.ID, resolved)
+}
+
+func TestResolveID_Prefix_NotFound(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	_, err := d.ResolveID("ZZZZZZZZ")
+	assert.True(t, errors.Is(err, db.ErrNotFound))
+}
+
+func TestResolveID_EmptyPrefix(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	_, err := d.ResolveID("")
+	assert.Error(t, err)
+}
+
 func TestFindByTypeAndContent(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
