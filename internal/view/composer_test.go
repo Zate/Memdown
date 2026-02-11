@@ -60,21 +60,28 @@ func TestCompose_ProjectFiltering_IncludesGlobalTag(t *testing.T) {
 	assert.Equal(t, "explicitly global", result.Nodes[0].Content)
 }
 
-func TestCompose_ProjectFiltering_NoProjectLoadsAll(t *testing.T) {
+func TestCompose_ProjectFiltering_EmptyProjectLoadsGlobalOnly(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	createNode(t, d, "fact", "project-a fact", []string{"tier:reference", "project:a"})
 	createNode(t, d, "fact", "project-b fact", []string{"tier:reference", "project:b"})
 	createNode(t, d, "fact", "untagged fact", []string{"tier:reference"})
+	createNode(t, d, "fact", "global fact", []string{"tier:reference", "project:global"})
 
 	result, err := view.Compose(d, view.ComposeOptions{
 		Query:  "tag:tier:reference",
 		Budget: 50000,
+		// Project is empty string - should only load global + untagged
 	})
 	require.NoError(t, err)
 
-	// No project filter — load everything
-	assert.Equal(t, 3, result.NodeCount)
+	// Empty project filter = load only global + untagged, NOT project-scoped
+	assert.Equal(t, 2, result.NodeCount)
+	contents := nodeContents(result.Nodes)
+	assert.Contains(t, contents, "untagged fact")
+	assert.Contains(t, contents, "global fact")
+	assert.NotContains(t, contents, "project-a fact")
+	assert.NotContains(t, contents, "project-b fact")
 }
 
 func TestCompose_ProjectFiltering_CaseInsensitive(t *testing.T) {

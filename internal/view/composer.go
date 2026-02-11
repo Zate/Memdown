@@ -50,16 +50,14 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 		return nodes[i].CreatedAt.After(nodes[j].CreatedAt)
 	})
 
-	// Filter by project scope
-	if opts.Project != "" {
-		var filtered []*db.Node
-		for _, n := range nodes {
-			if shouldIncludeForProject(n, opts.Project) {
-				filtered = append(filtered, n)
-			}
+	// Filter by project scope (always filter - empty project = global only)
+	var filtered []*db.Node
+	for _, n := range nodes {
+		if shouldIncludeForProject(n, opts.Project) {
+			filtered = append(filtered, n)
 		}
-		nodes = filtered
 	}
+	nodes = filtered
 
 	// Apply budget
 	result := &ComposeResult{
@@ -84,16 +82,14 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 	if opts.IncludeReferenceStats {
 		refNodes, err := query.ExecuteQuery(d, "tag:tier:reference", false)
 		if err == nil {
-			// Apply same project filtering
-			if opts.Project != "" {
-				var filtered []*db.Node
-				for _, n := range refNodes {
-					if shouldIncludeForProject(n, opts.Project) {
-						filtered = append(filtered, n)
-					}
+			// Apply same project filtering (always filter)
+			var filteredRef []*db.Node
+			for _, n := range refNodes {
+				if shouldIncludeForProject(n, opts.Project) {
+					filteredRef = append(filteredRef, n)
 				}
-				refNodes = filtered
 			}
+			refNodes = filteredRef
 			result.ReferenceCount = len(refNodes)
 			result.ReferenceByType = make(map[string]int)
 			for _, n := range refNodes {
