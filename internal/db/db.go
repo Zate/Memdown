@@ -172,6 +172,11 @@ var migrations = []struct {
 			WHERE name = 'default'
 			AND query = 'tag:tier:pinned OR tag:tier:reference OR tag:tier:working'`,
 	}},
+	{3, []string{
+		// Add sync tracking columns for remote sync capability
+		`ALTER TABLE nodes ADD COLUMN sync_version INTEGER DEFAULT 0`,
+		`ALTER TABLE nodes ADD COLUMN origin_device TEXT`,
+	}},
 }
 
 func (d *SQLiteStore) migrate() error {

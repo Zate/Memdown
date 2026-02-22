@@ -641,6 +641,54 @@ var postgresMigrations = []struct {
 			created_at TEXT NOT NULL
 		);
 	`},
+	{2, `
+		-- Server-only tables for remote mode
+
+		CREATE TABLE IF NOT EXISTS users (
+			id TEXT PRIMARY KEY,
+			username TEXT UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS devices (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			name TEXT NOT NULL,
+			token_hash TEXT NOT NULL,
+			refresh_token_hash TEXT,
+			last_seen TIMESTAMPTZ,
+			last_ip TEXT,
+			revoked BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+		CREATE INDEX IF NOT EXISTS idx_devices_token ON devices(token_hash);
+
+		CREATE TABLE IF NOT EXISTS repo_mappings (
+			id TEXT PRIMARY KEY,
+			normalized_url TEXT UNIQUE NOT NULL,
+			project_tag TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS sync_log (
+			id TEXT PRIMARY KEY,
+			device_id TEXT NOT NULL REFERENCES devices(id),
+			direction TEXT NOT NULL,
+			nodes_affected INTEGER NOT NULL DEFAULT 0,
+			sync_version BIGINT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_sync_log_device ON sync_log(device_id);
+		CREATE INDEX IF NOT EXISTS idx_sync_log_version ON sync_log(sync_version);
+
+		-- Add sync tracking columns to nodes
+		ALTER TABLE nodes ADD COLUMN IF NOT EXISTS sync_version BIGINT DEFAULT 0;
+		ALTER TABLE nodes ADD COLUMN IF NOT EXISTS origin_device TEXT;
+	`},
 }
 
 func (d *PostgresStore) migrate() error {

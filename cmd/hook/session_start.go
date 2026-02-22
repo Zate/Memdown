@@ -35,6 +35,9 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
+	// Auto-sync pull (if configured) — gracefully fails
+	autoSyncPull(d)
+
 	// Read last_session_stores before resetting
 	lastStores := -1
 	if val, err := d.GetPending("last_session_stores"); err == nil && val != "" {

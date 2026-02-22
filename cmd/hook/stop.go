@@ -117,6 +117,9 @@ func runStop(cmd *cobra.Command, args []string) error {
 		_ = d.SetPending("last_session_stores", "0")
 	}
 
+	// Auto-sync push (if configured) — gracefully fails
+	autoSyncPush(d)
+
 	fmt.Println("{}")
 	return nil
 }
