@@ -23,7 +23,7 @@ type Edge struct {
 	Metadata  string    `json:"metadata"`
 }
 
-func (d *DB) CreateEdge(fromID, toID, edgeType string) (*Edge, error) {
+func (d *SQLiteStore) CreateEdge(fromID, toID, edgeType string) (*Edge, error) {
 	if !validEdgeTypes[edgeType] {
 		return nil, fmt.Errorf("invalid edge type: %s", edgeType)
 	}
@@ -59,7 +59,7 @@ func (d *DB) CreateEdge(fromID, toID, edgeType string) (*Edge, error) {
 	}, nil
 }
 
-func (d *DB) DeleteEdge(fromID, toID string, edgeType string) error {
+func (d *SQLiteStore) DeleteEdge(fromID, toID string, edgeType string) error {
 	query := "DELETE FROM edges WHERE from_id = ? AND to_id = ?"
 	args := []interface{}{fromID, toID}
 	if edgeType != "" {
@@ -70,7 +70,7 @@ func (d *DB) DeleteEdge(fromID, toID string, edgeType string) error {
 	return err
 }
 
-func (d *DB) GetEdges(nodeID string, direction string) ([]*Edge, error) {
+func (d *SQLiteStore) GetEdges(nodeID string, direction string) ([]*Edge, error) {
 	var query string
 	switch direction {
 	case "out":
@@ -97,11 +97,11 @@ func (d *DB) GetEdges(nodeID string, direction string) ([]*Edge, error) {
 	return scanEdges(rows)
 }
 
-func (d *DB) GetEdgesFrom(nodeID string) ([]*Edge, error) {
+func (d *SQLiteStore) GetEdgesFrom(nodeID string) ([]*Edge, error) {
 	return d.GetEdges(nodeID, "out")
 }
 
-func (d *DB) GetEdgesTo(nodeID string) ([]*Edge, error) {
+func (d *SQLiteStore) GetEdgesTo(nodeID string) ([]*Edge, error) {
 	return d.GetEdges(nodeID, "in")
 }
 

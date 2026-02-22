@@ -13,12 +13,19 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
-type DB struct {
+// DB is a type alias for backward compatibility. Use Store interface in new code.
+type DB = SQLiteStore
+
+// SQLiteStore is the SQLite implementation of the Store interface.
+type SQLiteStore struct {
 	db *sql.DB
 }
 
+// compile-time check that SQLiteStore implements Store.
+var _ Store = (*SQLiteStore)(nil)
+
 // Open opens (or creates) the SQLite database at the given path.
-func Open(path string) (*DB, error) {
+func Open(path string) (*SQLiteStore, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
@@ -41,7 +48,7 @@ func Open(path string) (*DB, error) {
 		}
 	}
 
-	d := &DB{db: sqlDB}
+	d := &SQLiteStore{db: sqlDB}
 	if err := d.migrate(); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -50,27 +57,27 @@ func Open(path string) (*DB, error) {
 	return d, nil
 }
 
-func (d *DB) Close() error {
+func (d *SQLiteStore) Close() error {
 	return d.db.Close()
 }
 
-func (d *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (d *SQLiteStore) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return d.db.Exec(query, args...)
 }
 
-func (d *DB) QueryRow(query string, args ...interface{}) *sql.Row {
+func (d *SQLiteStore) QueryRow(query string, args ...interface{}) *sql.Row {
 	return d.db.QueryRow(query, args...)
 }
 
-func (d *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (d *SQLiteStore) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	return d.db.Query(query, args...)
 }
 
-func (d *DB) Begin() (*sql.Tx, error) {
+func (d *SQLiteStore) Begin() (*sql.Tx, error) {
 	return d.db.Begin()
 }
 
-func (d *DB) getSchemaVersion() int {
+func (d *SQLiteStore) getSchemaVersion() int {
 	var version int
 	err := d.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&version)
 	if err != nil {
@@ -79,7 +86,7 @@ func (d *DB) getSchemaVersion() int {
 	return version
 }
 
-func (d *DB) setSchemaVersion(tx *sql.Tx, version int) error {
+func (d *SQLiteStore) setSchemaVersion(tx *sql.Tx, version int) error {
 	_, err := tx.Exec("INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
 		version, time.Now().UTC().Format(time.RFC3339))
 	return err
@@ -167,7 +174,7 @@ var migrations = []struct {
 	}},
 }
 
-func (d *DB) migrate() error {
+func (d *SQLiteStore) migrate() error {
 	// Ensure schema_version table exists first
 	_, err := d.db.Exec(`CREATE TABLE IF NOT EXISTS schema_version (
 		version INTEGER PRIMARY KEY,

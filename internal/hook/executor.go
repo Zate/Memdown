@@ -10,7 +10,7 @@ import (
 )
 
 // ExecuteCommands processes parsed ctx commands against the database.
-func ExecuteCommands(d *db.DB, commands []CtxCommand) error {
+func ExecuteCommands(d db.Store, commands []CtxCommand) error {
 	for _, cmd := range commands {
 		if err := executeCommand(d, cmd); err != nil {
 			fmt.Fprintf(os.Stderr, "ctx warning: failed to execute %s command: %v\n", cmd.Type, err)
@@ -20,7 +20,7 @@ func ExecuteCommands(d *db.DB, commands []CtxCommand) error {
 }
 
 // ExecuteCommandsWithErrors processes parsed ctx commands and returns errors.
-func ExecuteCommandsWithErrors(d *db.DB, commands []CtxCommand) []error {
+func ExecuteCommandsWithErrors(d db.Store, commands []CtxCommand) []error {
 	var errs []error
 	for _, cmd := range commands {
 		if err := executeCommand(d, cmd); err != nil {
@@ -30,7 +30,7 @@ func ExecuteCommandsWithErrors(d *db.DB, commands []CtxCommand) []error {
 	return errs
 }
 
-func executeCommand(d *db.DB, cmd CtxCommand) error {
+func executeCommand(d db.Store, cmd CtxCommand) error {
 	switch cmd.Type {
 	case "remember":
 		return executeRemember(d, cmd)
@@ -53,7 +53,7 @@ func executeCommand(d *db.DB, cmd CtxCommand) error {
 	}
 }
 
-func executeRemember(d *db.DB, cmd CtxCommand) error {
+func executeRemember(d db.Store, cmd CtxCommand) error {
 	nodeType := cmd.Attrs["type"]
 	if nodeType == "" {
 		return fmt.Errorf("remember: type attribute is required")
@@ -122,7 +122,7 @@ func executeRemember(d *db.DB, cmd CtxCommand) error {
 	return err
 }
 
-func executeRecall(d *db.DB, cmd CtxCommand) error {
+func executeRecall(d db.Store, cmd CtxCommand) error {
 	queryStr := cmd.Attrs["query"]
 	if queryStr == "" {
 		return fmt.Errorf("recall: query attribute is required")
@@ -134,7 +134,7 @@ func executeRecall(d *db.DB, cmd CtxCommand) error {
 	return d.SetPending("recall_query", queryStr)
 }
 
-func executeSummarize(d *db.DB, cmd CtxCommand) error {
+func executeSummarize(d db.Store, cmd CtxCommand) error {
 	nodesStr := cmd.Attrs["nodes"]
 	if nodesStr == "" {
 		return fmt.Errorf("summarize: nodes attribute is required")
@@ -183,7 +183,7 @@ func executeSummarize(d *db.DB, cmd CtxCommand) error {
 	return nil
 }
 
-func executeLink(d *db.DB, cmd CtxCommand) error {
+func executeLink(d db.Store, cmd CtxCommand) error {
 	fromID := cmd.Attrs["from"]
 	toID := cmd.Attrs["to"]
 	edgeType := cmd.Attrs["type"]
@@ -208,7 +208,7 @@ func executeLink(d *db.DB, cmd CtxCommand) error {
 	return err
 }
 
-func executeStatus(d *db.DB) error {
+func executeStatus(d db.Store) error {
 	// Generate status text and store in pending
 	var totalNodes, totalTokens, edgeCount, tagCount int
 	_ = d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
@@ -233,7 +233,7 @@ func executeStatus(d *db.DB) error {
 	return d.SetPending("status_output", status)
 }
 
-func executeTask(d *db.DB, cmd CtxCommand) error {
+func executeTask(d db.Store, cmd CtxCommand) error {
 	name := cmd.Attrs["name"]
 	action := cmd.Attrs["action"]
 
@@ -287,7 +287,7 @@ func executeTask(d *db.DB, cmd CtxCommand) error {
 	}
 }
 
-func executeExpand(d *db.DB, cmd CtxCommand) error {
+func executeExpand(d db.Store, cmd CtxCommand) error {
 	nodeID := cmd.Attrs["node"]
 	if nodeID == "" {
 		return fmt.Errorf("expand: node attribute is required")
@@ -321,7 +321,7 @@ func executeExpand(d *db.DB, cmd CtxCommand) error {
 	return d.SetPending("expand_nodes", string(data))
 }
 
-func executeSupersede(d *db.DB, cmd CtxCommand) error {
+func executeSupersede(d db.Store, cmd CtxCommand) error {
 	oldID := cmd.Attrs["old"]
 	newID := cmd.Attrs["new"]
 	if oldID == "" || newID == "" {

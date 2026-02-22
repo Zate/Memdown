@@ -5,19 +5,25 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/zate/ctx/internal/view"
 )
 
 var (
-	composeQuery  string
-	composeBudget int
+	composeQuery    string
+	composeBudget   int
+	composeIDs      string
+	composeEdges    bool
+	composeTemplate string
+	composeSeed     string
+	composeDepth    int
 )
 
 var composeCmd = &cobra.Command{
 	Use:   "compose",
-	Short: "Compose context from query",
+	Short: "Compose context from query or node IDs",
 	RunE:  runCompose,
 }
 
@@ -30,6 +36,11 @@ func init() {
 	}
 	composeCmd.Flags().StringVar(&composeQuery, "query", "", "Query expression")
 	composeCmd.Flags().IntVar(&composeBudget, "budget", defaultBudget, "Token budget")
+	composeCmd.Flags().StringVar(&composeIDs, "ids", "", "Comma-separated node IDs to compose (supports short prefixes)")
+	composeCmd.Flags().BoolVar(&composeEdges, "edges", false, "Include relationships between composed nodes")
+	composeCmd.Flags().StringVar(&composeTemplate, "template", "", "Render using template: default, document")
+	composeCmd.Flags().StringVar(&composeSeed, "seed", "", "Seed node ID for graph traversal")
+	composeCmd.Flags().IntVar(&composeDepth, "depth", 1, "Traversal depth for seed mode")
 	rootCmd.AddCommand(composeCmd)
 }
 
@@ -40,12 +51,31 @@ func runCompose(cmd *cobra.Command, args []string) error {
 	}
 	defer d.Close()
 
-	result, err := view.Compose(d, view.ComposeOptions{
-		Query:  composeQuery,
-		Budget: composeBudget,
-	})
+	opts := view.ComposeOptions{
+		Query:        composeQuery,
+		Budget:       composeBudget,
+		IncludeEdges: composeEdges,
+		SeedID:       composeSeed,
+		Depth:        composeDepth,
+	}
+
+	if composeIDs != "" {
+		ids := strings.Split(composeIDs, ",")
+		for i := range ids {
+			ids[i] = strings.TrimSpace(ids[i])
+		}
+		opts.IDs = ids
+	}
+
+	result, err := view.Compose(d, opts)
 	if err != nil {
 		return err
+	}
+
+	// If a template is specified, use template rendering
+	if composeTemplate != "" {
+		fmt.Print(view.RenderTemplate(result, composeTemplate))
+		return nil
 	}
 
 	switch format {

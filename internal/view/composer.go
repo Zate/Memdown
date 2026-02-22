@@ -11,14 +11,19 @@ import (
 )
 
 type ComposeOptions struct {
-	Query                string
-	Budget               int
-	Project              string // If set, filter out nodes scoped to other projects
-	IncludeReferenceStats bool  // If true, count available tier:reference nodes
+	Query                 string
+	IDs                   []string // If set, compose exactly these nodes (bypasses query)
+	SeedID                string   // If set, start from this node and traverse edges
+	Depth                 int      // Traversal depth for seed mode (default 1)
+	Budget                int
+	Project               string   // If set, filter out nodes scoped to other projects
+	IncludeReferenceStats bool     // If true, count available tier:reference nodes
+	IncludeEdges          bool     // If true, fetch and include edges between composed nodes
 }
 
 type ComposeResult struct {
 	Nodes             []*db.Node
+	Edges             []*db.Edge     // Edges between composed nodes (if IncludeEdges)
 	TotalTokens       int
 	NodeCount         int
 	RenderedAt        time.Time
@@ -27,11 +32,44 @@ type ComposeResult struct {
 	ReferenceByType   map[string]int // Breakdown by node type
 }
 
-func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
+func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 	var nodes []*db.Node
 	var err error
 
-	if opts.Query != "" {
+	if len(opts.IDs) > 0 {
+		// Fetch specific nodes by ID (supports short prefixes)
+		for _, id := range opts.IDs {
+			resolved, resolveErr := d.ResolveID(id)
+			if resolveErr != nil {
+				return nil, fmt.Errorf("failed to resolve node ID %q: %w", id, resolveErr)
+			}
+			node, getErr := d.GetNode(resolved)
+			if getErr != nil {
+				return nil, fmt.Errorf("failed to get node %q: %w", resolved, getErr)
+			}
+			nodes = append(nodes, node)
+		}
+	} else if opts.SeedID != "" {
+		// Traverse graph from seed node
+		resolved, resolveErr := d.ResolveID(opts.SeedID)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("failed to resolve seed ID %q: %w", opts.SeedID, resolveErr)
+		}
+		depth := opts.Depth
+		if depth <= 0 {
+			depth = 1
+		}
+		collected := traverseGraph(d, resolved, depth)
+		for _, id := range collected {
+			node, getErr := d.GetNode(id)
+			if getErr != nil {
+				continue
+			}
+			nodes = append(nodes, node)
+		}
+		// Enable edges automatically for seed traversal
+		opts.IncludeEdges = true
+	} else if opts.Query != "" {
 		nodes, err = query.ExecuteQuery(d, opts.Query, false)
 	} else {
 		nodes, err = d.ListNodes(db.ListOptions{})
@@ -76,6 +114,25 @@ func Compose(d *db.DB, opts ComposeOptions) (*ComposeResult, error) {
 		result.Nodes = append(result.Nodes, n)
 		result.TotalTokens += n.TokenEstimate
 		result.NodeCount++
+	}
+
+	// Fetch edges between composed nodes if requested
+	if opts.IncludeEdges && len(result.Nodes) > 0 {
+		nodeSet := make(map[string]bool, len(result.Nodes))
+		for _, n := range result.Nodes {
+			nodeSet[n.ID] = true
+		}
+		for _, n := range result.Nodes {
+			edges, edgeErr := d.GetEdgesFrom(n.ID)
+			if edgeErr != nil {
+				continue
+			}
+			for _, e := range edges {
+				if nodeSet[e.ToID] {
+					result.Edges = append(result.Edges, e)
+				}
+			}
+		}
 	}
 
 	// Count available reference nodes if requested
@@ -249,6 +306,33 @@ func RenderMarkdown(result *ComposeResult) string {
 	renderGroup("Working Context", groups["working"])
 	renderGroup("Other", groups["other"])
 
+	// Render relationships between composed nodes
+	if len(result.Edges) > 0 {
+		// Build ID-to-short-label map
+		nodeLabels := make(map[string]string, len(result.Nodes))
+		for _, n := range result.Nodes {
+			label := n.Content
+			if len(label) > 40 {
+				label = label[:40] + "..."
+			}
+			nodeLabels[n.ID] = fmt.Sprintf("[%s:%s]", n.Type, n.ID[:8])
+		}
+
+		b.WriteString("## Relationships\n\n")
+		for _, e := range result.Edges {
+			fromLabel := nodeLabels[e.FromID]
+			toLabel := nodeLabels[e.ToID]
+			if fromLabel == "" {
+				fromLabel = e.FromID[:8]
+			}
+			if toLabel == "" {
+				toLabel = e.ToID[:8]
+			}
+			fmt.Fprintf(&b, "- %s —%s→ %s\n", fromLabel, e.Type, toLabel)
+		}
+		b.WriteString("\n")
+	}
+
 	b.WriteString("<!-- ctx:end -->\n")
 	return b.String()
 }
@@ -258,6 +342,39 @@ func titleCase(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// traverseGraph does a BFS from a seed node, following edges up to maxDepth.
+// Returns a list of unique node IDs in traversal order.
+func traverseGraph(d db.Store, seedID string, maxDepth int) []string {
+	visited := map[string]bool{seedID: true}
+	order := []string{seedID}
+	frontier := []string{seedID}
+
+	for depth := 0; depth < maxDepth && len(frontier) > 0; depth++ {
+		var nextFrontier []string
+		for _, nodeID := range frontier {
+			// Follow outgoing edges
+			edges, err := d.GetEdges(nodeID, "")
+			if err != nil {
+				continue
+			}
+			for _, e := range edges {
+				neighbor := e.ToID
+				if e.ToID == nodeID {
+					neighbor = e.FromID
+				}
+				if !visited[neighbor] {
+					visited[neighbor] = true
+					order = append(order, neighbor)
+					nextFrontier = append(nextFrontier, neighbor)
+				}
+			}
+		}
+		frontier = nextFrontier
+	}
+
+	return order
 }
 
 func RenderText(result *ComposeResult) string {

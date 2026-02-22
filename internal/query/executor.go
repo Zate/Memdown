@@ -10,7 +10,7 @@ import (
 )
 
 // ExecuteQuery parses and executes a query against the database.
-func ExecuteQuery(d *db.DB, queryStr string, includeSuperseded bool) ([]*db.Node, error) {
+func ExecuteQuery(d db.Store, queryStr string, includeSuperseded bool) ([]*db.Node, error) {
 	ast, err := Parse(queryStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)

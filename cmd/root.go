@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	dbPath string
-	format string
+	dbPath  string
+	format  string
+	backend string
 )
 
 var rootCmd = &cobra.Command{
@@ -27,8 +28,13 @@ func init() {
 	if envDB := os.Getenv("CTX_DB"); envDB != "" {
 		defaultDB = envDB
 	}
-	rootCmd.PersistentFlags().StringVar(&dbPath, "db", defaultDB, "Database file path")
+	defaultBackend := "sqlite"
+	if envBackend := os.Getenv("CTX_BACKEND"); envBackend != "" {
+		defaultBackend = envBackend
+	}
+	rootCmd.PersistentFlags().StringVar(&dbPath, "db", defaultDB, "Database path (file path for sqlite, connection string for postgres)")
 	rootCmd.PersistentFlags().StringVar(&format, "format", "text", "Output format: text, json, markdown")
+	rootCmd.PersistentFlags().StringVar(&backend, "backend", defaultBackend, "Database backend: sqlite, postgres")
 	rootCmd.AddCommand(hook.HookCmd)
 }
 
@@ -36,16 +42,27 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-func openDB() (*db.DB, error) {
-	d, err := db.Open(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+func openDB() (db.Store, error) {
+	switch backend {
+	case "postgres", "postgresql":
+		d, err := db.OpenPostgres(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open postgres database: %w", err)
+		}
+		return d, nil
+	case "sqlite", "":
+		d, err := db.Open(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open database: %w", err)
+		}
+		return d, nil
+	default:
+		return nil, fmt.Errorf("unknown backend %q: use 'sqlite' or 'postgres'", backend)
 	}
-	return d, nil
 }
 
 // resolveArg resolves a node ID prefix to a full ID using the database.
-func resolveArg(d *db.DB, prefix string) (string, error) {
+func resolveArg(d db.Store, prefix string) (string, error) {
 	resolved, err := d.ResolveID(prefix)
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve ID %q: %w", prefix, err)

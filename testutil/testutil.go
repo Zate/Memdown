@@ -9,7 +9,7 @@ import (
 )
 
 // SetupTestDB creates a test database and returns it.
-func SetupTestDB(t *testing.T) *db.DB {
+func SetupTestDB(t *testing.T) db.Store {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	database, err := db.Open(path)

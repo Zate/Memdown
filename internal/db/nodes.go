@@ -63,7 +63,7 @@ func NewID() string {
 	return ulid.MustNew(ulid.Timestamp(time.Now()), rand.Reader).String()
 }
 
-func (d *DB) CreateNode(input CreateNodeInput) (*Node, error) {
+func (d *SQLiteStore) CreateNode(input CreateNodeInput) (*Node, error) {
 	if !validNodeTypes[input.Type] {
 		return nil, fmt.Errorf("invalid node type: %s", input.Type)
 	}
@@ -125,7 +125,7 @@ func (d *DB) CreateNode(input CreateNodeInput) (*Node, error) {
 
 // FindByTypeAndContent returns an existing active (non-superseded) node with
 // matching type and content, or nil if none exists.
-func (d *DB) FindByTypeAndContent(nodeType, content string) (*Node, error) {
+func (d *SQLiteStore) FindByTypeAndContent(nodeType, content string) (*Node, error) {
 	var id string
 	err := d.db.QueryRow(
 		`SELECT id FROM nodes WHERE type = ? AND content = ? AND superseded_by IS NULL LIMIT 1`,
@@ -143,7 +143,7 @@ func (d *DB) FindByTypeAndContent(nodeType, content string) (*Node, error) {
 // If the input is already a full ULID (26 chars), it's returned as-is after validation.
 // For shorter prefixes, it finds the unique matching node.
 // Returns ErrNotFound if no match, or an error if multiple nodes match the prefix.
-func (d *DB) ResolveID(prefix string) (string, error) {
+func (d *SQLiteStore) ResolveID(prefix string) (string, error) {
 	if len(prefix) == 26 {
 		var id string
 		err := d.db.QueryRow("SELECT id FROM nodes WHERE id = ?", prefix).Scan(&id)
@@ -184,7 +184,7 @@ func (d *DB) ResolveID(prefix string) (string, error) {
 	}
 }
 
-func (d *DB) GetNode(id string) (*Node, error) {
+func (d *SQLiteStore) GetNode(id string) (*Node, error) {
 	node := &Node{}
 	var summary, supersededBy sql.NullString
 	var createdAt, updatedAt string
@@ -218,7 +218,7 @@ func (d *DB) GetNode(id string) (*Node, error) {
 	return node, nil
 }
 
-func (d *DB) UpdateNode(id string, input UpdateNodeInput) (*Node, error) {
+func (d *SQLiteStore) UpdateNode(id string, input UpdateNodeInput) (*Node, error) {
 	// Check node exists
 	existing, err := d.GetNode(id)
 	if err != nil {
@@ -265,7 +265,7 @@ func (d *DB) UpdateNode(id string, input UpdateNodeInput) (*Node, error) {
 	return d.GetNode(id)
 }
 
-func (d *DB) DeleteNode(id string) error {
+func (d *SQLiteStore) DeleteNode(id string) error {
 	result, err := d.db.Exec("DELETE FROM nodes WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete node: %w", err)
@@ -277,7 +277,7 @@ func (d *DB) DeleteNode(id string) error {
 	return nil
 }
 
-func (d *DB) ListNodes(opts ListOptions) ([]*Node, error) {
+func (d *SQLiteStore) ListNodes(opts ListOptions) ([]*Node, error) {
 	query := `SELECT n.id, n.type, n.content, n.summary, n.token_estimate, n.superseded_by, n.created_at, n.updated_at, n.metadata
 		FROM nodes n`
 	var conditions []string
@@ -344,7 +344,7 @@ func (d *DB) ListNodes(opts ListOptions) ([]*Node, error) {
 	return nodes, nil
 }
 
-func (d *DB) Search(query string) ([]*Node, error) {
+func (d *SQLiteStore) Search(query string) ([]*Node, error) {
 	rows, err := d.db.Query(`SELECT n.id, n.type, n.content, n.summary, n.token_estimate, n.superseded_by, n.created_at, n.updated_at, n.metadata
 		FROM nodes n
 		JOIN nodes_fts f ON n.rowid = f.rowid

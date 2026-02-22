@@ -38,7 +38,7 @@ func runMCP(cmd *cobra.Command, args []string) error {
 	return server.ServeStdio(s)
 }
 
-func mcpOpenDB() (*db.DB, error) {
+func mcpOpenDB() (db.Store, error) {
 	path := dbPath
 	if envDB := os.Getenv("CTX_DB"); envDB != "" && path == "" {
 		path = envDB
@@ -80,12 +80,27 @@ func registerTools(s *server.MCPServer) {
 	), handleStatus)
 
 	s.AddTool(mcp.NewTool("ctx_compose",
-		mcp.WithDescription("Compose context from stored knowledge, rendered as markdown. Uses default view query if none specified."),
+		mcp.WithDescription("Compose a markdown document from stored knowledge. Supports query, explicit node IDs, or graph traversal from a seed node."),
 		mcp.WithString("query",
-			mcp.Description("Query expression to filter nodes (default: tier:pinned OR tier:reference OR tier:working)"),
+			mcp.Description("Query expression to filter nodes"),
+		),
+		mcp.WithString("ids",
+			mcp.Description("Comma-separated node IDs to compose (supports short prefixes)"),
+		),
+		mcp.WithString("seed",
+			mcp.Description("Seed node ID for graph traversal (follows edges to related nodes)"),
+		),
+		mcp.WithNumber("depth",
+			mcp.Description("Traversal depth for seed mode (default: 1)"),
 		),
 		mcp.WithNumber("budget",
 			mcp.Description("Token budget (default: 50000)"),
+		),
+		mcp.WithString("template",
+			mcp.Description("Render template: 'default' or 'document'"),
+		),
+		mcp.WithBoolean("edges",
+			mcp.Description("Include relationships between composed nodes (default: false)"),
 		),
 	), handleCompose)
 
@@ -406,13 +421,35 @@ func handleCompose(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolR
 
 	queryStr := req.GetString("query", "")
 	budget := req.GetInt("budget", 50000)
+	idsStr := req.GetString("ids", "")
+	seedID := req.GetString("seed", "")
+	depth := req.GetInt("depth", 1)
+	templateName := req.GetString("template", "")
+	edges := req.GetBool("edges", false)
 
-	result, err := view.Compose(d, view.ComposeOptions{
-		Query:  queryStr,
-		Budget: budget,
-	})
+	opts := view.ComposeOptions{
+		Query:        queryStr,
+		Budget:       budget,
+		SeedID:       seedID,
+		Depth:        depth,
+		IncludeEdges: edges,
+	}
+
+	if idsStr != "" {
+		ids := strings.Split(idsStr, ",")
+		for i := range ids {
+			ids[i] = strings.TrimSpace(ids[i])
+		}
+		opts.IDs = ids
+	}
+
+	result, err := view.Compose(d, opts)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("compose error: %v", err)), nil
+	}
+
+	if templateName != "" {
+		return mcp.NewToolResultText(view.RenderTemplate(result, templateName)), nil
 	}
 
 	return mcp.NewToolResultText(view.RenderMarkdown(result)), nil

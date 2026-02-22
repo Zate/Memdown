@@ -10,7 +10,7 @@ import (
 	"github.com/zate/ctx/testutil"
 )
 
-func createNode(t *testing.T, d *db.DB, nodeType, content string, tags []string) *db.Node {
+func createNode(t *testing.T, d db.Store, nodeType, content string, tags []string) *db.Node {
 	t.Helper()
 	node, err := d.CreateNode(db.CreateNodeInput{
 		Type:    nodeType,
