@@ -12,6 +12,7 @@ import (
 
 	"github.com/zate/ctx/internal/db"
 	ctxsync "github.com/zate/ctx/internal/sync"
+	"gopkg.in/yaml.v3"
 )
 
 // autoSyncConfig checks if auto_sync is enabled and credentials exist.
@@ -29,15 +30,23 @@ func loadAutoSyncConfig() *autoSyncConfig {
 		return nil
 	}
 
-	// Check for auto_sync setting in server.yaml or env
-	if os.Getenv("CTX_AUTO_SYNC") == "" {
-		// Check server.yaml for auto_sync: true
-		data, err := os.ReadFile(filepath.Join(home, ".ctx", "server.yaml"))
-		if err != nil || !bytes.Contains(data, []byte("auto_sync: true")) {
+	// Check for auto_sync setting in env or server.yaml
+	if env := os.Getenv("CTX_AUTO_SYNC"); env != "" {
+		if env != "true" && env != "1" {
 			return nil
 		}
-	} else if os.Getenv("CTX_AUTO_SYNC") != "true" && os.Getenv("CTX_AUTO_SYNC") != "1" {
-		return nil
+	} else {
+		// Parse server.yaml properly for auto_sync field
+		data, err := os.ReadFile(filepath.Join(home, ".ctx", "server.yaml"))
+		if err != nil {
+			return nil
+		}
+		var serverCfg struct {
+			AutoSync bool `yaml:"auto_sync"`
+		}
+		if yaml.Unmarshal(data, &serverCfg) != nil || !serverCfg.AutoSync {
+			return nil
+		}
 	}
 
 	// Load remote config

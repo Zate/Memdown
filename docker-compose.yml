@@ -1,0 +1,30 @@
+services:
+  ctx:
+    build: .
+    ports:
+      - "8377:8377"
+    environment:
+      CTX_SERVER_DB_URL: postgres://ctx:ctx@postgres:5432/ctx?sslmode=disable
+      CTX_SERVER_ADMIN_PASSWORD: ${CTX_ADMIN_PASSWORD:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ctx
+      POSTGRES_PASSWORD: ctx
+      POSTGRES_DB: ctx
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctx"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:

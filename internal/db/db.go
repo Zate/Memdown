@@ -177,6 +177,40 @@ var migrations = []struct {
 		`ALTER TABLE nodes ADD COLUMN sync_version INTEGER DEFAULT 0`,
 		`ALTER TABLE nodes ADD COLUMN origin_device TEXT`,
 	}},
+	{4, []string{
+		// Add auth/device/repo tables so ctx serve works in SQLite mode
+		`CREATE TABLE IF NOT EXISTS users (
+			id TEXT PRIMARY KEY,
+			username TEXT UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE TABLE IF NOT EXISTS devices (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			name TEXT NOT NULL,
+			token_hash TEXT NOT NULL,
+			refresh_token_hash TEXT,
+			last_seen TEXT,
+			last_ip TEXT,
+			revoked BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE TABLE IF NOT EXISTS repo_mappings (
+			id TEXT PRIMARY KEY,
+			normalized_url TEXT UNIQUE NOT NULL,
+			project_tag TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE TABLE IF NOT EXISTS sync_log (
+			id TEXT PRIMARY KEY,
+			device_id TEXT NOT NULL REFERENCES devices(id),
+			direction TEXT NOT NULL,
+			nodes_affected INTEGER NOT NULL DEFAULT 0,
+			sync_version INTEGER NOT NULL,
+			created_at TEXT NOT NULL DEFAULT ''
+		)`,
+	}},
 }
 
 func (d *SQLiteStore) migrate() error {
