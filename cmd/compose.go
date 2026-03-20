@@ -19,6 +19,7 @@ var (
 	composeTemplate string
 	composeSeed     string
 	composeDepth    int
+	composeProject  string
 )
 
 var composeCmd = &cobra.Command{
@@ -41,6 +42,7 @@ func init() {
 	composeCmd.Flags().StringVar(&composeTemplate, "template", "", "Render using template: default, document")
 	composeCmd.Flags().StringVar(&composeSeed, "seed", "", "Seed node ID for graph traversal")
 	composeCmd.Flags().IntVar(&composeDepth, "depth", 1, "Traversal depth for seed mode")
+	composeCmd.Flags().StringVar(&composeProject, "project", "", "Project scope for filtering")
 	rootCmd.AddCommand(composeCmd)
 }
 
@@ -58,6 +60,7 @@ func runCompose(cmd *cobra.Command, args []string) error {
 		SeedID:       composeSeed,
 		Depth:        composeDepth,
 		Agent:        agent,
+		Project:      composeProject,
 	}
 
 	if composeIDs != "" {
