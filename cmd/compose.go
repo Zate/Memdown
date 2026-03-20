@@ -57,6 +57,7 @@ func runCompose(cmd *cobra.Command, args []string) error {
 		IncludeEdges: composeEdges,
 		SeedID:       composeSeed,
 		Depth:        composeDepth,
+		Agent:        agent,
 	}
 
 	if composeIDs != "" {

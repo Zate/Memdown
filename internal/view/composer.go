@@ -17,6 +17,7 @@ type ComposeOptions struct {
 	Depth                 int      // Traversal depth for seed mode (default 1)
 	Budget                int
 	Project               string   // If set, filter out nodes scoped to other projects
+	Agent                 string   // If set, filter to agent-scoped + global nodes
 	IncludeReferenceStats bool     // If true, count available tier:reference nodes
 	IncludeEdges          bool     // If true, fetch and include edges between composed nodes
 }
@@ -92,6 +93,15 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 	var filtered []*db.Node
 	for _, n := range nodes {
 		if shouldIncludeForProject(n, opts.Project) {
+			filtered = append(filtered, n)
+		}
+	}
+	nodes = filtered
+
+	// Filter by agent partition
+	filtered = nil
+	for _, n := range nodes {
+		if shouldIncludeForAgent(n, opts.Agent) {
 			filtered = append(filtered, n)
 		}
 	}
@@ -179,6 +189,31 @@ func shouldIncludeForProject(node *db.Node, currentProject string) bool {
 	}
 	if !hasProjectTag {
 		return true
+	}
+	return matchesCurrent
+}
+
+// shouldIncludeForAgent returns true if a node should be visible given the current agent.
+// A node is agent-scoped if it has any tag matching "agent:*".
+// If agent-scoped, it only shows if one of its agent tags matches the current agent.
+// Nodes with no agent tags are global and visible to everyone.
+func shouldIncludeForAgent(node *db.Node, currentAgent string) bool {
+	hasAgentTag := false
+	matchesCurrent := false
+	for _, tag := range node.Tags {
+		if strings.HasPrefix(tag, "agent:") {
+			hasAgentTag = true
+			a := strings.TrimPrefix(tag, "agent:")
+			if strings.EqualFold(a, currentAgent) {
+				matchesCurrent = true
+			}
+		}
+	}
+	if !hasAgentTag {
+		return true // global node, visible to all
+	}
+	if currentAgent == "" {
+		return false // agent-scoped node, no agent specified, hide it
 	}
 	return matchesCurrent
 }

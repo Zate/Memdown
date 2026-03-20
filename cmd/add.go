@@ -66,6 +66,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		metadata = string(data)
 	}
 
+	// Auto-add agent tag if --agent is set
+	if at := agentTag(); at != "" {
+		addTags = append(addTags, at)
+	}
+
 	node, err := d.CreateNode(db.CreateNodeInput{
 		Type:     addType,
 		Content:  content,
