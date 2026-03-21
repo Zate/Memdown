@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	agentpkg "github.com/zate/ctx/internal/agent"
 	"github.com/zate/ctx/internal/db"
 )
 
@@ -83,6 +84,21 @@ func executeRemember(d db.Store, cmd CtxCommand) error {
 		}
 		if hasWorking {
 			tags = append(tags, "task:"+currentTask)
+		}
+	}
+
+	// Auto-add agent tag from current session
+	currentAgent, agentErr := d.GetPending("current_agent")
+	if agentErr == nil && currentAgent != "" {
+		hasAgentTag := false
+		for _, t := range tags {
+			if strings.HasPrefix(t, "agent:") {
+				hasAgentTag = true
+				break
+			}
+		}
+		if !hasAgentTag {
+			tags = append(tags, "agent:"+currentAgent)
 		}
 	}
 
@@ -209,17 +225,22 @@ func executeLink(d db.Store, cmd CtxCommand) error {
 }
 
 func executeStatus(d db.Store) error {
-	// Generate status text and store in pending
+	// Determine agent scope
+	currentAgent, _ := d.GetPending("current_agent")
+
+	// Build agent filter SQL fragment
+	agentFilter := agentpkg.FilterSQL(currentAgent)
+
 	var totalNodes, totalTokens, edgeCount, tagCount int
-	_ = d.QueryRow("SELECT COUNT(*) FROM nodes WHERE superseded_by IS NULL").Scan(&totalNodes)
-	_ = d.QueryRow("SELECT COALESCE(SUM(token_estimate), 0) FROM nodes WHERE superseded_by IS NULL").Scan(&totalTokens)
+	_ = d.QueryRow("SELECT COUNT(*) FROM nodes n WHERE n.superseded_by IS NULL" + agentFilter).Scan(&totalNodes)
+	_ = d.QueryRow("SELECT COALESCE(SUM(n.token_estimate), 0) FROM nodes n WHERE n.superseded_by IS NULL" + agentFilter).Scan(&totalTokens)
 	_ = d.QueryRow("SELECT COUNT(*) FROM edges").Scan(&edgeCount)
 	_ = d.QueryRow("SELECT COUNT(DISTINCT tag) FROM tags").Scan(&tagCount)
 
 	status := fmt.Sprintf("Nodes: %d (%d tokens), Edges: %d, Tags: %d unique", totalNodes, totalTokens, edgeCount, tagCount)
 
 	// Add type breakdown
-	rows, err := d.Query("SELECT type, COUNT(*) FROM nodes WHERE superseded_by IS NULL GROUP BY type ORDER BY type")
+	rows, err := d.Query("SELECT n.type, COUNT(*) FROM nodes n WHERE n.superseded_by IS NULL" + agentFilter + " GROUP BY n.type ORDER BY n.type")
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -232,6 +253,7 @@ func executeStatus(d db.Store) error {
 
 	return d.SetPending("status_output", status)
 }
+
 
 func executeTask(d db.Store, cmd CtxCommand) error {
 	name := cmd.Attrs["name"]

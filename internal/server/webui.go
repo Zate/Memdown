@@ -1,19 +1,110 @@
 package server
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"html/template"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
 // registerWebUIRoutes adds the admin web UI routes.
 func (s *Server) registerWebUIRoutes() {
-	s.mux.HandleFunc("GET /admin", s.handleAdminDashboard)
-	s.mux.HandleFunc("GET /admin/nodes", s.handleNodeBrowser)
-	s.mux.HandleFunc("GET /admin/repos", s.handleRepoMappings)
-	s.mux.HandleFunc("GET /admin/devices", s.handleDeviceManagement)
+	s.mux.HandleFunc("GET /admin", s.requireAdminPassword(s.handleAdminDashboard))
+	s.mux.HandleFunc("GET /admin/nodes", s.requireAdminPassword(s.handleNodeBrowser))
+	s.mux.HandleFunc("GET /admin/repos", s.requireAdminPassword(s.handleRepoMappings))
+	s.mux.HandleFunc("GET /admin/devices", s.requireAdminPassword(s.handleDeviceManagement))
+	s.mux.HandleFunc("POST /admin/login", s.handleAdminLogin)
 }
+
+// --- Admin session management ---
+
+var (
+	adminSessions   = map[string]time.Time{}
+	adminSessionsMu sync.Mutex
+)
+
+const adminSessionCookie = "ctx_admin_session"
+const adminSessionTTL = 24 * time.Hour
+
+func (s *Server) requireAdminPassword(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.config.AdminPassword == "" {
+			next(w, r)
+			return
+		}
+
+		cookie, err := r.Cookie(adminSessionCookie)
+		if err == nil {
+			adminSessionsMu.Lock()
+			expiry, ok := adminSessions[cookie.Value]
+			adminSessionsMu.Unlock()
+			if ok && time.Now().Before(expiry) {
+				next(w, r)
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = adminLoginTmpl.Execute(w, map[string]string{"Redirect": r.URL.Path})
+	}
+}
+
+func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	password := r.FormValue("password")
+	redirect := r.FormValue("redirect")
+	if redirect == "" {
+		redirect = "/admin"
+	}
+
+	if !s.verifyAdminPassword(password) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = adminLoginTmpl.Execute(w, map[string]string{"Error": "Invalid password.", "Redirect": redirect})
+		return
+	}
+
+	// Create session
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	sessionID := hex.EncodeToString(b)
+
+	adminSessionsMu.Lock()
+	adminSessions[sessionID] = time.Now().Add(adminSessionTTL)
+	adminSessionsMu.Unlock()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminSessionCookie,
+		Value:    sessionID,
+		Path:     "/admin",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(adminSessionTTL.Seconds()),
+	})
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
+var adminLoginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
+<html><head><title>ctx — Admin Login</title>` + baseCSS + `
+<style>.login { max-width: 400px; margin: 80px auto; }
+.login input[type=password] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+.login button { width: 100%; padding: 10px; background: #1a1a2e; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.login .error { color: #ef4444; margin-bottom: 10px; }
+</style></head><body>
+<div class="login">
+<h2>ctx Admin</h2>
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+<form method="POST" action="/admin/login">
+<input type="hidden" name="redirect" value="{{.Redirect}}">
+<p>Enter admin password:</p>
+<input type="password" name="password" autofocus>
+<button type="submit">Sign in</button>
+</form>
+</div>
+</body></html>`))
 
 // --- Dashboard ---
 

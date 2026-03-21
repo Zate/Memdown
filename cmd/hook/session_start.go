@@ -11,7 +11,10 @@ import (
 	"github.com/zate/ctx/internal/view"
 )
 
-var sessionStartProject string
+var (
+	sessionStartProject string
+	sessionStartAgent   string
+)
 
 var sessionStartCmd = &cobra.Command{
 	Use:   "session-start",
@@ -21,6 +24,7 @@ var sessionStartCmd = &cobra.Command{
 
 func init() {
 	sessionStartCmd.Flags().StringVar(&sessionStartProject, "project", "", "Current project name for scoped context loading")
+	sessionStartCmd.Flags().StringVar(&sessionStartAgent, "agent", "", "Agent identity for scoped memory (overrides global --agent)")
 }
 
 func runSessionStart(cmd *cobra.Command, args []string) error {
@@ -51,6 +55,21 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	_ = d.SetPending("session_store_count", "0")
 	_ = d.DeletePending("transcript_cursor")
 
+	// Resolve agent: local flag > global flag > env
+	effectiveAgent := sessionStartAgent
+	if effectiveAgent == "" {
+		if globalAgent := cmd.Root().PersistentFlags().Lookup("agent"); globalAgent != nil {
+			effectiveAgent = globalAgent.Value.String()
+		}
+	}
+
+	// Store current agent for auto-tagging in remember commands
+	if effectiveAgent != "" {
+		_ = d.SetPending("current_agent", effectiveAgent)
+	} else {
+		_ = d.DeletePending("current_agent")
+	}
+
 	// Store current project for auto-tagging in remember commands
 	if sessionStartProject != "" {
 		_ = d.SetPending("current_project", sessionStartProject)
@@ -79,6 +98,7 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 		Query:                 queryStr,
 		Budget:                budget,
 		Project:               sessionStartProject,
+		Agent:                 effectiveAgent,
 		IncludeReferenceStats: true,
 	})
 	if err != nil {

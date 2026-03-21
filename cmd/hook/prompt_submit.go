@@ -75,6 +75,9 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Resolve agent for filtering
+	currentAgent, _ := d.GetPending("current_agent")
+
 	var contextParts []string
 
 	// Check for recall query
@@ -82,6 +85,9 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 	if err == nil && recallQuery != "" {
 		nodes, err := query.ExecuteQuery(d, recallQuery, false)
 		if err == nil {
+			// Filter by agent partition
+			nodes = filterNodesByAgent(nodes, currentAgent)
+
 			var b strings.Builder
 			fmt.Fprintf(&b, "## Recall Results\n\nQuery: `%s`\n\n", recallQuery)
 			if len(nodes) == 0 {

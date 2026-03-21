@@ -50,6 +50,9 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Filter by agent partition
+	nodes = filterNodesByAgent(nodes)
+
 	// Get all edges for exported nodes
 	nodeIDs := map[string]bool{}
 	for _, n := range nodes {

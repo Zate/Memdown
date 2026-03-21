@@ -435,11 +435,12 @@ func (s *Server) ensureAdminUser() string {
 // authMiddleware wraps all /api/ routes (except auth endpoints) with token validation.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for health, auth endpoints, and device approval page
+		// Skip auth for health, auth endpoints, device approval page, and admin UI
 		path := r.URL.Path
 		if path == "/health" ||
 			strings.HasPrefix(path, "/api/auth/") ||
-			strings.HasPrefix(path, "/device/") {
+			strings.HasPrefix(path, "/device/") ||
+			strings.HasPrefix(path, "/admin") {
 			next.ServeHTTP(w, r)
 			return
 		}

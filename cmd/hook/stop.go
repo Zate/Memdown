@@ -68,6 +68,18 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Ensure current_agent is set from global --agent flag if not already stored
+	// (stop hook may run without a preceding session-start in some contexts)
+	if globalAgent := cmd.Root().PersistentFlags().Lookup("agent"); globalAgent != nil {
+		agentVal := globalAgent.Value.String()
+		if agentVal != "" {
+			existing, err := d.GetPending("current_agent")
+			if err != nil || existing == "" {
+				_ = d.SetPending("current_agent", agentVal)
+			}
+		}
+	}
+
 	// Parse ctx commands
 	commands := hookpkg.ParseCtxCommands(response)
 	if len(commands) == 0 {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	agentpkg "github.com/zate/ctx/internal/agent"
 	"github.com/zate/ctx/internal/db"
 	"github.com/zate/ctx/internal/query"
 )
@@ -99,13 +100,7 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 	nodes = filtered
 
 	// Filter by agent partition
-	filtered = nil
-	for _, n := range nodes {
-		if shouldIncludeForAgent(n, opts.Agent) {
-			filtered = append(filtered, n)
-		}
-	}
-	nodes = filtered
+	nodes = agentpkg.FilterNodes(nodes, opts.Agent)
 
 	// Apply budget
 	result := &ComposeResult{
@@ -156,7 +151,7 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 					filteredRef = append(filteredRef, n)
 				}
 			}
-			refNodes = filteredRef
+			refNodes = agentpkg.FilterNodes(filteredRef, opts.Agent)
 			result.ReferenceCount = len(refNodes)
 			result.ReferenceByType = make(map[string]int)
 			for _, n := range refNodes {
@@ -189,31 +184,6 @@ func shouldIncludeForProject(node *db.Node, currentProject string) bool {
 	}
 	if !hasProjectTag {
 		return true
-	}
-	return matchesCurrent
-}
-
-// shouldIncludeForAgent returns true if a node should be visible given the current agent.
-// A node is agent-scoped if it has any tag matching "agent:*".
-// If agent-scoped, it only shows if one of its agent tags matches the current agent.
-// Nodes with no agent tags are global and visible to everyone.
-func shouldIncludeForAgent(node *db.Node, currentAgent string) bool {
-	hasAgentTag := false
-	matchesCurrent := false
-	for _, tag := range node.Tags {
-		if strings.HasPrefix(tag, "agent:") {
-			hasAgentTag = true
-			a := strings.TrimPrefix(tag, "agent:")
-			if strings.EqualFold(a, currentAgent) {
-				matchesCurrent = true
-			}
-		}
-	}
-	if !hasAgentTag {
-		return true // global node, visible to all
-	}
-	if currentAgent == "" {
-		return false // agent-scoped node, no agent specified, hide it
 	}
 	return matchesCurrent
 }

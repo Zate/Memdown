@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	agentpkg "github.com/zate/ctx/internal/agent"
 )
 
 var deleteCmd = &cobra.Command{
@@ -27,6 +28,15 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	id, err := resolveArg(d, args[0])
 	if err != nil {
 		return err
+	}
+
+	// Agent guard: only allow deleting nodes visible to the current agent
+	node, err := d.GetNode(id)
+	if err != nil {
+		return err
+	}
+	if !agentpkg.ShouldInclude(node, agent) {
+		return fmt.Errorf("node %s is not accessible to the current agent scope", id[:8])
 	}
 
 	if err := d.DeleteNode(id); err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	agentpkg "github.com/zate/ctx/internal/agent"
 )
 
 var showWithEdges bool
@@ -36,6 +37,11 @@ func runShow(cmd *cobra.Command, args []string) error {
 	node, err := d.GetNode(id)
 	if err != nil {
 		return err
+	}
+
+	// Agent guard: only allow showing nodes visible to the current agent
+	if !agentpkg.ShouldInclude(node, agent) {
+		return fmt.Errorf("node %s is not accessible to the current agent scope", id[:8])
 	}
 
 	switch format {
