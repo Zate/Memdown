@@ -90,6 +90,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	case "json":
 		out := map[string]interface{}{
 			"database":     dbPath,
+			"agent":        agent,
 			"file_size":    fileSize,
 			"total_nodes":  totalNodes,
 			"total_tokens": totalTokens,
@@ -101,6 +102,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		data, _ := json.MarshalIndent(out, "", "  ")
 		fmt.Println(string(data))
 	default:
+		if agent != "" {
+			fmt.Printf("Agent: %s\n", agent)
+		}
 		fmt.Printf("Database: %s", dbPath)
 		if fileSize > 0 {
 			fmt.Printf(" (%.1f KB)", float64(fileSize)/1024)
