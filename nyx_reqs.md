@@ -78,6 +78,21 @@ CTX_DB=~/.nyx/.ctx/store.db ctx init 2>&1
 
 ---
 
+### BUG-4: `ctx hook session-start` injects hardcoded `ctx:remember` XML instructions
+
+**Problem:** The hook's session-start output includes a preamble that instructs the agent to use `<ctx:remember>` XML tags for writes. This preamble is hardcoded in the hook's Go code — there's no flag to suppress or customize it.
+
+**Why it's a problem:** Nyx has switched to direct `ctx add` via Bash for writes. The hook's preamble contradicts this, telling next-session Nyx to use the old XML pattern. Since the hook injection and CLAUDE.md both appear in context, the agent gets conflicting instructions.
+
+**Requested fix — one of:**
+1. Add `--no-preamble` flag to suppress the instruction block, only inject nodes
+2. Add `--preamble-file` flag to use a custom instruction template
+3. Make the preamble configurable via a view or config file
+
+**Preferred:** Option 1 (`--no-preamble`). The plugin/agent should own its own ctx instructions, not the hook.
+
+---
+
 ## Priority 2: Agent Scoping Changes
 
 ### SCOPE-1: `--agent` exclusive mode
