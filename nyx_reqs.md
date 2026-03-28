@@ -98,17 +98,20 @@ ctx add --type decision --tag tier:pinned --db ~/.nyx/.ctx/store.db --agent nyx 
 
 **Requested fix:**
 
-Add `--no-preamble` flag to `ctx hook session-start`:
+Add `--primer-file` flag to `ctx hook session-start`. When provided, read that file and use its contents as the preamble instead of the hardcoded one:
 
 ```bash
-# Nyx: nodes only, no instructions (plugin owns that)
-ctx hook session-start --agent=nyx --db=~/.nyx/.ctx/store.db --no-preamble
+# Nyx: custom primer from plugin directory
+ctx hook session-start --agent=nyx --db=~/.nyx/.ctx/store.db \
+  --primer-file ~/.nyx/.plugin/hooks/ctx-primer.md
 
-# Vanilla Claude: keep preamble (ctx plugin provides instructions)
+# Vanilla Claude: default preamble (no flag needed)
 ctx hook session-start
 ```
 
-**Implementation:** In `runSessionStart()` (cmd/hook/session_start.go), add a `--no-preamble` bool flag. Pass it through to a new field on `ComposeResult` or call a `RenderNodesOnly()` variant instead of `RenderMarkdown()`.
+The primer file is a markdown snippet that gets prepended to the node output. Each agent/plugin can own their own instructions.
+
+**Implementation:** In `runSessionStart()` (cmd/hook/session_start.go), add a `--primer-file` string flag. In `RenderMarkdown()` or a new variant, if primer file is provided, read the file and use its content instead of lines 230-241. If not provided, use the existing hardcoded preamble (backward compatible).
 
 **Location in code:**
 - Preamble generation: `internal/view/composer.go:230-241`
