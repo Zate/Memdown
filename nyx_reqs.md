@@ -78,18 +78,43 @@ CTX_DB=~/.nyx/.ctx/store.db ctx init 2>&1
 
 ---
 
-### BUG-4: `ctx hook session-start` injects hardcoded `ctx:remember` XML instructions
+### BUG-4: `ctx hook session-start` preamble conflicts with agent-specific ctx instructions
 
-**Problem:** The hook's session-start output includes a preamble that instructs the agent to use `<ctx:remember>` XML tags for writes. This preamble is hardcoded in the hook's Go code — there's no flag to suppress or customize it.
+**Problem:** `RenderMarkdown()` in `internal/view/composer.go` (line 230-241) generates a usage preamble with example commands that don't include `--db` or `--agent` flags. When an agent (like Nyx) has its own database and needs specific flags on every command, the preamble teaches the wrong pattern.
 
-**Why it's a problem:** Nyx has switched to direct `ctx add` via Bash for writes. The hook's preamble contradicts this, telling next-session Nyx to use the old XML pattern. Since the hook injection and CLAUDE.md both appear in context, the agent gets conflicting instructions.
+Additionally, line 245 still references `<ctx:recall>` XML syntax.
 
-**Requested fix — one of:**
-1. Add `--no-preamble` flag to suppress the instruction block, only inject nodes
-2. Add `--preamble-file` flag to use a custom instruction template
-3. Make the preamble configurable via a view or config file
+**What the preamble currently outputs (with --agent nyx):**
+```
+ctx add --type decision --tag tier:pinned "..."
+```
 
-**Preferred:** Option 1 (`--no-preamble`). The plugin/agent should own its own ctx instructions, not the hook.
+**What Nyx needs it to output:**
+```
+ctx add --type decision --tag tier:pinned --db ~/.nyx/.ctx/store.db --agent nyx "..."
+```
+
+**Or preferably: no preamble at all when --agent is set.** The agent's plugin should own its instructions.
+
+**Requested fix:**
+
+Add `--no-preamble` flag to `ctx hook session-start`:
+
+```bash
+# Nyx: nodes only, no instructions (plugin owns that)
+ctx hook session-start --agent=nyx --db=~/.nyx/.ctx/store.db --no-preamble
+
+# Vanilla Claude: keep preamble (ctx plugin provides instructions)
+ctx hook session-start
+```
+
+**Implementation:** In `runSessionStart()` (cmd/hook/session_start.go), add a `--no-preamble` bool flag. Pass it through to a new field on `ComposeResult` or call a `RenderNodesOnly()` variant instead of `RenderMarkdown()`.
+
+**Location in code:**
+- Preamble generation: `internal/view/composer.go:230-241`
+- Hook invocation: `cmd/hook/session_start.go:135` (`view.RenderMarkdown(result)`)
+
+**Also fix:** Line 245 of composer.go references `<ctx:recall>` — should reference `ctx query` or `ctx search` instead (both sides are moving to direct binary usage).
 
 ---
 
