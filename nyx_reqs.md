@@ -53,6 +53,31 @@ ctx compose --ids "01KMSE4RXXXXXXXXXXXXXXX" --agent nyx
 
 ---
 
+### BUG-3: `--db` flag ignored by `ctx init` and `ctx import`
+
+**Reproduce:**
+```bash
+# init always creates at ~/.ctx/store.db regardless of --db
+ctx init --db ~/.nyx/.ctx/store.db 2>&1
+# Output: "Database ready: /home/zate/.ctx/store.db"  ← WRONG PATH
+
+# import also ignores --db
+cat export.json | ctx import --db ~/.nyx/.ctx/store.db --merge 2>&1
+# Imports into ~/.ctx/store.db, not the specified path
+
+# CTX_DB env var also ignored by init and import
+CTX_DB=~/.nyx/.ctx/store.db ctx init 2>&1
+# Same: "Database ready: /home/zate/.ctx/store.db"
+```
+
+**Expected:** `--db` flag should work consistently across ALL commands. Currently works for `status`, `query`, `show`, `add`, `list` but NOT for `init` and `import`.
+
+**Workaround used:** Copied `~/.ctx/store.db` and deleted non-nyx nodes via sqlite3 directly. This works but shouldn't be necessary.
+
+**Impact:** Cannot create a new database at a custom path via the CLI. Have to copy an existing one and surgically modify it.
+
+---
+
 ## Priority 2: Agent Scoping Changes
 
 ### SCOPE-1: `--agent` exclusive mode
