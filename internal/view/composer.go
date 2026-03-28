@@ -251,7 +251,7 @@ func RenderMarkdown(result *ComposeResult) string {
 
 	// Show reference availability if stats are present
 	if result.ReferenceCount > 0 {
-		fmt.Fprintf(&b, "**Reference available:** %d nodes not auto-loaded (use `<ctx:recall>` to access)", result.ReferenceCount)
+		fmt.Fprintf(&b, "**Reference available:** %d nodes not auto-loaded (use `ctx query` to access)", result.ReferenceCount)
 		if len(result.ReferenceByType) > 0 {
 			var parts []string
 			// Sort types for consistent output
