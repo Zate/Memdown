@@ -60,7 +60,7 @@ func TestCompose_ProjectFiltering_IncludesGlobalTag(t *testing.T) {
 	assert.Equal(t, "explicitly global", result.Nodes[0].Content)
 }
 
-func TestCompose_ProjectFiltering_EmptyProjectLoadsGlobalOnly(t *testing.T) {
+func TestCompose_ProjectFiltering_EmptyProjectLoadsAll(t *testing.T) {
 	d := testutil.SetupTestDB(t)
 
 	createNode(t, d, "fact", "project-a fact", []string{"tier:reference", "project:a"})
@@ -71,17 +71,17 @@ func TestCompose_ProjectFiltering_EmptyProjectLoadsGlobalOnly(t *testing.T) {
 	result, err := view.Compose(d, view.ComposeOptions{
 		Query:  "tag:tier:reference",
 		Budget: 50000,
-		// Project is empty string - should only load global + untagged
+		// Project is empty string - no project filtering, include everything
 	})
 	require.NoError(t, err)
 
-	// Empty project filter = load only global + untagged, NOT project-scoped
-	assert.Equal(t, 2, result.NodeCount)
+	// Empty project = no filtering, all nodes included
+	assert.Equal(t, 4, result.NodeCount)
 	contents := nodeContents(result.Nodes)
 	assert.Contains(t, contents, "untagged fact")
 	assert.Contains(t, contents, "global fact")
-	assert.NotContains(t, contents, "project-a fact")
-	assert.NotContains(t, contents, "project-b fact")
+	assert.Contains(t, contents, "project-a fact")
+	assert.Contains(t, contents, "project-b fact")
 }
 
 func TestCompose_ProjectFiltering_CaseInsensitive(t *testing.T) {
@@ -218,4 +218,83 @@ func TestRenderMarkdown_HidesReferenceWhenZero(t *testing.T) {
 
 	output := view.RenderMarkdown(result)
 	assert.NotContains(t, output, "Reference available")
+}
+
+// BUG-1: compose with no --project should not filter out project-scoped nodes
+func TestCompose_NoProjectFlag_IncludesAllProjects(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	createNode(t, d, "fact", "book fact", []string{"tier:pinned", "project:Book"})
+	createNode(t, d, "decision", "glint decision", []string{"tier:pinned", "project:glint"})
+	createNode(t, d, "fact", "global fact", []string{"tier:pinned"})
+
+	result, err := view.Compose(d, view.ComposeOptions{
+		Query:  "tag:tier:pinned",
+		Budget: 50000,
+		// No Project set — should include ALL nodes
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, result.NodeCount, "all nodes should be included when no project filter")
+	contents := nodeContents(result.Nodes)
+	assert.Contains(t, contents, "book fact")
+	assert.Contains(t, contents, "glint decision")
+	assert.Contains(t, contents, "global fact")
+}
+
+// BUG-2: compose --ids should bypass project and agent filtering
+func TestCompose_ExplicitIDs_BypassFiltering(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	// Create a node with agent and project tags
+	node := createNode(t, d, "decision", "nyx-specific decision", []string{
+		"tier:pinned", "project:Book", "agent:nyx",
+	})
+
+	// Compose by ID without --agent or --project — should still find it
+	result, err := view.Compose(d, view.ComposeOptions{
+		IDs:    []string{node.ID[:8]}, // short prefix
+		Budget: 50000,
+		// No Agent, no Project — should NOT filter explicit IDs
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.NodeCount, "explicit IDs should bypass agent/project filtering")
+	assert.Equal(t, "nyx-specific decision", result.Nodes[0].Content)
+}
+
+func TestCompose_ExplicitIDs_WithDifferentAgent(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	node := createNode(t, d, "fact", "agent-scoped fact", []string{
+		"tier:pinned", "agent:nyx",
+	})
+
+	// Request by ID with a DIFFERENT agent — should still return it
+	result, err := view.Compose(d, view.ComposeOptions{
+		IDs:    []string{node.ID},
+		Budget: 50000,
+		Agent:  "other-agent",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.NodeCount, "explicit IDs should bypass agent filtering even with different agent")
+}
+
+func TestCompose_ExplicitIDs_WithDifferentProject(t *testing.T) {
+	d := testutil.SetupTestDB(t)
+
+	node := createNode(t, d, "fact", "project-scoped fact", []string{
+		"tier:pinned", "project:alpha",
+	})
+
+	// Request by ID with a DIFFERENT project — should still return it
+	result, err := view.Compose(d, view.ComposeOptions{
+		IDs:     []string{node.ID},
+		Budget:  50000,
+		Project: "beta",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.NodeCount, "explicit IDs should bypass project filtering")
 }

@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	sessionStartProject string
-	sessionStartAgent   string
+	sessionStartProject   string
+	sessionStartAgent     string
+	sessionStartPrimerFile string
 )
 
 var sessionStartCmd = &cobra.Command{
@@ -25,6 +26,7 @@ var sessionStartCmd = &cobra.Command{
 func init() {
 	sessionStartCmd.Flags().StringVar(&sessionStartProject, "project", "", "Current project name for scoped context loading")
 	sessionStartCmd.Flags().StringVar(&sessionStartAgent, "agent", "", "Agent identity for scoped memory (overrides global --agent)")
+	sessionStartCmd.Flags().StringVar(&sessionStartPrimerFile, "primer-file", "", "Path to a markdown file with usage instructions to inject (replaces the built-in primer)")
 }
 
 func runSessionStart(cmd *cobra.Command, args []string) error {
@@ -131,6 +133,16 @@ func runSessionStart(cmd *cobra.Command, args []string) error {
 	}
 
 	result.LastSessionStores = lastStores
+
+	// Load custom primer if specified, otherwise use built-in
+	if sessionStartPrimerFile != "" {
+		data, err := os.ReadFile(sessionStartPrimerFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ctx: failed to read primer file %s: %v\n", sessionStartPrimerFile, err)
+		} else {
+			result.Primer = string(data)
+		}
+	}
 
 	context := view.RenderMarkdown(result)
 

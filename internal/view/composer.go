@@ -32,13 +32,16 @@ type ComposeResult struct {
 	LastSessionStores int            // -1 means unknown/not set
 	ReferenceCount    int            // Number of available tier:reference nodes
 	ReferenceByType   map[string]int // Breakdown by node type
+	Primer            string         // Custom primer text (replaces built-in if set)
 }
 
 func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 	var nodes []*db.Node
 	var err error
+	explicitIDs := false // true when user explicitly requested specific nodes
 
 	if len(opts.IDs) > 0 {
+		explicitIDs = true
 		// Fetch specific nodes by ID (supports short prefixes)
 		for _, id := range opts.IDs {
 			resolved, resolveErr := d.ResolveID(id)
@@ -90,17 +93,22 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 		return nodes[i].CreatedAt.After(nodes[j].CreatedAt)
 	})
 
-	// Filter by project scope (always filter - empty project = global only)
-	var filtered []*db.Node
-	for _, n := range nodes {
-		if shouldIncludeForProject(n, opts.Project) {
-			filtered = append(filtered, n)
+	// Skip project/agent filtering when user explicitly requested specific nodes
+	if !explicitIDs {
+		// Filter by project scope
+		// When project is empty, include global nodes AND project-scoped nodes
+		// (don't exclude project-scoped nodes just because no --project was given)
+		var filtered []*db.Node
+		for _, n := range nodes {
+			if shouldIncludeForProject(n, opts.Project) {
+				filtered = append(filtered, n)
+			}
 		}
-	}
-	nodes = filtered
+		nodes = filtered
 
-	// Filter by agent partition
-	nodes = agentpkg.FilterNodes(nodes, opts.Agent)
+		// Filter by agent partition
+		nodes = agentpkg.FilterNodes(nodes, opts.Agent)
+	}
 
 	// Apply budget
 	result := &ComposeResult{
@@ -167,7 +175,12 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 // A node is project-scoped if it has any tag matching "project:*" (excluding "project:global").
 // If project-scoped, it only loads if one of its project tags matches the current project.
 // Nodes with no project tags or tagged "project:global" load everywhere.
+// When currentProject is empty, all nodes are included (no project filtering).
 func shouldIncludeForProject(node *db.Node, currentProject string) bool {
+	// No project filter specified — include everything
+	if currentProject == "" {
+		return true
+	}
 	hasProjectTag := false
 	matchesCurrent := false
 	for _, tag := range node.Tags {
@@ -215,19 +228,26 @@ func RenderMarkdown(result *ComposeResult) string {
 	header += " -->\n\n"
 	b.WriteString(header)
 
-	// Usage primer with tier guidance and type→tier mapping
-	b.WriteString("You have persistent memory via `ctx`. Commands are processed after you respond.\n\n")
-	b.WriteString("**Store knowledge when:**\n")
-	b.WriteString("- You make or learn a **decision** → `<ctx:remember type=\"decision\" tags=\"tier:pinned\">...</ctx:remember>`\n")
-	b.WriteString("- You discover a **preference** or convention → `type=\"fact\"`, `tier:pinned`\n")
-	b.WriteString("- You see a recurring **pattern** → `type=\"pattern\"`, `tier:pinned`\n")
-	b.WriteString("- Debugging reveals a **root cause** → `type=\"observation\"`, `tier:working`\n")
-	b.WriteString("- An idea worth revisiting → `type=\"hypothesis\"`, `tier:working`\n")
-	b.WriteString("- A question can't be answered now → `type=\"open-question\"`, `tier:working`\n")
-	b.WriteString("- Durable but not critical knowledge → `tier:reference` (accessed via recall)\n\n")
-	b.WriteString("**Key question:** Every session? → `tier:pinned`. Someday? → `tier:reference`. This task? → `tier:working`.\n\n")
-	b.WriteString("**Other commands:** `<ctx:recall query=\"...\"/>`, `<ctx:status/>`, `<ctx:task name=\"X\" action=\"start|end\"/>`\n")
-	b.WriteString("Always include a `tier:` tag. Invoke the `ctx` skill for full reference.\n\n")
+	// Usage primer — custom or built-in
+	if result.Primer != "" {
+		b.WriteString(result.Primer)
+		if !strings.HasSuffix(result.Primer, "\n") {
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	} else {
+		b.WriteString("You have persistent memory via `ctx`. Use the `ctx` CLI (via Bash) to store and query knowledge.\n\n")
+		b.WriteString("**Store knowledge when:**\n")
+		b.WriteString("- You make or learn a **decision** -- `ctx add --type decision --tag tier:pinned \"...\"`\n")
+		b.WriteString("- You discover a **preference** or convention -- `ctx add --type fact --tag tier:pinned \"...\"`\n")
+		b.WriteString("- You see a recurring **pattern** -- `ctx add --type pattern --tag tier:pinned \"...\"`\n")
+		b.WriteString("- Debugging reveals a **root cause** -- `ctx add --type observation --tag tier:working \"...\"`\n")
+		b.WriteString("- An idea worth revisiting -- `ctx add --type hypothesis --tag tier:working \"...\"`\n")
+		b.WriteString("- Durable but not critical knowledge -- use `--tag tier:reference`\n\n")
+		b.WriteString("**Key question:** Every session? -- `tier:pinned`. Someday? -- `tier:reference`. This task? -- `tier:working`.\n\n")
+		b.WriteString("**Query:** `ctx query 'type:decision AND tag:project:X'` | **Status:** `ctx status`\n")
+		b.WriteString("Always include a `tier:` tag and `project:` tag. Invoke the `ctx` skill for full reference.\n\n")
+	}
 
 	// Show reference availability if stats are present
 	if result.ReferenceCount > 0 {
