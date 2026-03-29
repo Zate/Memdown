@@ -221,8 +221,10 @@ func tierPriority(tags []string) int {
 func RenderMarkdown(result *ComposeResult) string {
 	var b strings.Builder
 
-	header := fmt.Sprintf("<!-- ctx: %d nodes, %d tokens, rendered at %s",
-		result.NodeCount, result.TotalTokens, result.RenderedAt.Format(time.RFC3339))
+	// Omit rendered-at timestamp for KV cache stability — the same node set
+	// should always produce the same token sequence across sessions.
+	header := fmt.Sprintf("<!-- ctx: %d nodes, %d tokens",
+		result.NodeCount, result.TotalTokens)
 	if result.LastSessionStores > 0 {
 		header += fmt.Sprintf(" | last session: %d nodes stored", result.LastSessionStores)
 	} else if result.LastSessionStores == 0 {
