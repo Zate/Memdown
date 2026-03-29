@@ -83,14 +83,17 @@ func Compose(d db.Store, opts ComposeOptions) (*ComposeResult, error) {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	// Sort by priority: pinned > reference > working > other > recency
+	// Sort by priority: pinned > reference > working > other
+	// Within same tier, sort by ULID (stable creation order) for KV cache consistency.
+	// Using ID sort instead of CreatedAt ensures the same node set always produces
+	// the same token sequence, enabling prefix cache hits across sessions.
 	sort.SliceStable(nodes, func(i, j int) bool {
 		pi := tierPriority(nodes[i].Tags)
 		pj := tierPriority(nodes[j].Tags)
 		if pi != pj {
 			return pi < pj
 		}
-		return nodes[i].CreatedAt.After(nodes[j].CreatedAt)
+		return nodes[i].ID < nodes[j].ID
 	})
 
 	// Skip project/agent filtering when user explicitly requested specific nodes
