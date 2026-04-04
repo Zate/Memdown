@@ -103,7 +103,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 			if len(preview) > 60 {
 				preview = preview[:60] + "..."
 			}
-			fmt.Printf("%s[%s] %s: %s\n", indent, r.ID[:8], r.Type, preview)
+			fmt.Printf("%s[%s] %s: %s\n", indent, r.ID, r.Type, preview)
 		}
 	}
 

@@ -87,7 +87,7 @@ func runRelated(cmd *cobra.Command, args []string) error {
 			if len(preview) > 60 {
 				preview = preview[:60] + "..."
 			}
-			fmt.Printf("[%s] %s (%s): %s\n", r.ID[:8], r.Type, r.Edge, preview)
+			fmt.Printf("[%s] %s (%s): %s\n", r.ID, r.Type, r.Edge, preview)
 		}
 	}
 

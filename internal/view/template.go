@@ -122,7 +122,7 @@ func buildNodeLabels(nodes []*db.Node) map[string]string {
 		if len(preview) > 30 {
 			preview = preview[:30] + "..."
 		}
-		labels[n.ID] = fmt.Sprintf("%s:%s", n.Type, n.ID[:8])
+		labels[n.ID] = fmt.Sprintf("%s:%s", n.Type, n.ID)
 	}
 	return labels
 }

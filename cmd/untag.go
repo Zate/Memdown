@@ -33,6 +33,6 @@ func runUntag(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Untagged: %s from %s\n", args[1], id[:8])
+	fmt.Printf("Untagged: %s from %s\n", args[1], id)
 	return nil
 }

@@ -41,7 +41,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 
 	// Agent guard: only allow showing nodes visible to the current agent
 	if !agentpkg.ShouldInclude(node, agent) {
-		return fmt.Errorf("node %s is not accessible to the current agent scope", id[:8])
+		return fmt.Errorf("node %s is not accessible to the current agent scope", id)
 	}
 
 	switch format {

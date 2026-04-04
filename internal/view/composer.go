@@ -317,12 +317,11 @@ func RenderMarkdown(result *ComposeResult) string {
 				fmt.Fprintf(&b, "### %s\n\n", titleCase(t))
 			}
 			for _, n := range byType[t] {
-				shortID := n.ID[:8]
 				content := n.Content
 				if len(content) > 200 {
 					content = content[:200] + "..."
 				}
-				fmt.Fprintf(&b, "- [%s:%s] %s\n", n.Type, shortID, content)
+				fmt.Fprintf(&b, "- [%s:%s] %s\n", n.Type, n.ID, content)
 				if len(n.Tags) > 0 {
 					fmt.Fprintf(&b, "  - Tags: %s\n", strings.Join(n.Tags, ", "))
 				}
@@ -345,7 +344,7 @@ func RenderMarkdown(result *ComposeResult) string {
 			if len(label) > 40 {
 				label = label[:40] + "..."
 			}
-			nodeLabels[n.ID] = fmt.Sprintf("[%s:%s]", n.Type, n.ID[:8])
+			nodeLabels[n.ID] = fmt.Sprintf("[%s:%s]", n.Type, n.ID)
 		}
 
 		b.WriteString("## Relationships\n\n")
@@ -353,10 +352,10 @@ func RenderMarkdown(result *ComposeResult) string {
 			fromLabel := nodeLabels[e.FromID]
 			toLabel := nodeLabels[e.ToID]
 			if fromLabel == "" {
-				fromLabel = e.FromID[:8]
+				fromLabel = e.FromID
 			}
 			if toLabel == "" {
-				toLabel = e.ToID[:8]
+				toLabel = e.ToID
 			}
 			fmt.Fprintf(&b, "- %s —%s→ %s\n", fromLabel, e.Type, toLabel)
 		}
@@ -419,7 +418,7 @@ func RenderText(result *ComposeResult) string {
 		if len(n.Tags) > 0 {
 			tags = " [" + strings.Join(n.Tags, ", ") + "]"
 		}
-		fmt.Fprintf(&b, "[%s] %s: %s%s\n", n.ID[:8], n.Type, preview, tags)
+		fmt.Fprintf(&b, "[%s] %s: %s%s\n", n.ID, n.Type, preview, tags)
 	}
 	return b.String()
 }

@@ -55,7 +55,7 @@ func runQuery(cmd *cobra.Command, args []string) error {
 			if len(n.Tags) > 0 {
 				tags = " [" + joinStrings(n.Tags, ", ") + "]"
 			}
-			fmt.Printf("[%s] %s: %s%s\n", n.ID[:8], n.Type, preview, tags)
+			fmt.Printf("[%s] %s: %s%s\n", n.ID, n.Type, preview, tags)
 		}
 	}
 

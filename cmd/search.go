@@ -47,7 +47,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			if len(preview) > 80 {
 				preview = preview[:80] + "..."
 			}
-			fmt.Printf("[%s] %s: %s\n", n.ID[:8], n.Type, preview)
+			fmt.Printf("[%s] %s: %s\n", n.ID, n.Type, preview)
 		}
 	}
 

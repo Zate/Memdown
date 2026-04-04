@@ -95,8 +95,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 			} else {
 				fmt.Fprintf(&b, "Found %d nodes:\n\n", len(nodes))
 				for _, n := range nodes {
-					shortID := n.ID[:8]
-					fmt.Fprintf(&b, "- [%s:%s] %s\n", n.Type, shortID, n.Content)
+					fmt.Fprintf(&b, "- [%s:%s] %s\n", n.Type, n.ID, n.Content)
 					if len(n.Tags) > 0 {
 						fmt.Fprintf(&b, "  - Tags: %s\n", strings.Join(n.Tags, ", "))
 					}
@@ -136,8 +135,7 @@ func runPromptSubmit(cmd *cobra.Command, args []string) error {
 				if err != nil {
 					continue
 				}
-				shortID := node.ID[:8]
-				fmt.Fprintf(&b, "- [%s:%s] %s\n", node.Type, shortID, node.Content)
+				fmt.Fprintf(&b, "- [%s:%s] %s\n", node.Type, node.ID, node.Content)
 				if len(node.Tags) > 0 {
 					fmt.Fprintf(&b, "  - Tags: %s\n", strings.Join(node.Tags, ", "))
 				}
